@@ -66,20 +66,23 @@ postinstall: consumer root detected -> /your/project
 ## 🔧 Configuration in Playwright
 
 ```json
-  use: {
-   headless: false,
-   trace: "on-first-retry",
- },
+{
+  "use": {
+    "headless": false,
+    "trace": "on-first-retry"
+  },
 
- /* Configure projects for major browsers */
- projects: [
-   {
-     name: "chromium",
-     use: {
-      channel: "chrome", // MacOs
-      baseUrl:"url base optional"
-       },
-   },
+  /* Configure projects for major browsers */
+  "projects": [
+    {
+      "name": "chromium",
+      "use": {
+        "channel": "chrome", // MacOs
+        "baseUrl": "url base optional"
+      }
+    }
+  ]
+}
 ```
 
 ---
