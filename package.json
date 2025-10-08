@@ -3,10 +3,12 @@
   "version": "1.0.3",
   "description": "Generate tests Web from JSONs",
   "main": "./dist/src/index.js",
+  "module": "./dist/src/index.js",
   "types": "./dist/src/types.js",
   "exports": {
     ".": {
       "import": "./dist/src/index.js",
+      "require": "./dist/src/index.js",
       "types": "./dist/src/types.js"
     }
   },
