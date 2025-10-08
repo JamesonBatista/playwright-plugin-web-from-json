@@ -1,0 +1,41 @@
+{
+  "name": "playwright-plugin-web-from-json",
+  "version": "1.0.0",
+  "description": "Generate tests Web from JSONs",
+  "main": "./dist/src/index.js",
+  "types": "./dist/src/types.js",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "prepare": "tsc -p tsconfig.json",
+    "postinstall": "node dist/src/scripts/setup.js || true"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/JamesonBatista/playwright-plugin-web-from-json.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/JamesonBatista/playwright-plugin-web-from-json/issues"
+  },
+  "homepage": "https://github.com/JamesonBatista/playwright-plugin-web-from-json#readme",
+  "dependencies": {
+    "@faker-js/faker": "^10.0.0",
+    "@playwright/test": "^1.55.1"
+  },
+  "devDependencies": {
+    "@types/node": "^24.7.0",
+    "typescript": "^5.9.3"
+  }
+}
