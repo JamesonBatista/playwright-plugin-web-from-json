@@ -1,9 +1,17 @@
 # 🎭 playwright-plugin-web-from-json
 
 [![Npm package weekly downloads](https://badgen.net/npm/dw/playwright-plugin-web-from-json)](https://npmjs.com/package/playwright-plugin-web-from-json)
+
 [![Npm package weekly downloads](https://badgen.net/npm/dm/playwright-plugin-web-from-json)](https://npmjs.com/package/playwright-plugin-web-from-json)
+
 [![Npm package weekly downloads](https://badgen.net/npm/dy/playwright-plugin-web-from-json)](https://npmjs.com/package/playwright-plugin-web-from-json)
+
 [![Npm package weekly downloads](https://badgen.net/npm/dt/playwright-plugin-web-from-json)](https://npmjs.com/package/playwright-plugin-web-from-json)
+
+[![Npm package weekly downloads](https://badgen.net/npm/dt/playwright)](https://npmjs.com/package/playwright)
+[![Npm package weekly downloads](https://badgen.net/npm/dt/node)](https://npmjs.com/package/node)
+
+
 
 Generate **Playwright** tests from **JSON files**. Point to a folder (e.g., `Fixtures/`) and get fully wired suites & test cases — no boilerplate specs.
 
