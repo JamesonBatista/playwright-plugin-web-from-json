@@ -11,8 +11,6 @@
 [![Npm package weekly downloads](https://badgen.net/npm/dt/playwright)](https://npmjs.com/package/playwright)
 [![Npm package weekly downloads](https://badgen.net/npm/dt/node)](https://npmjs.com/package/node)
 
-
-
 Generate **Playwright** tests from **JSON files**. Point to a folder (e.g., `Fixtures/`) and get fully wired suites & test cases — no boilerplate specs.
 
 > ✨ **Auto-scaffold on install (postinstall):**
@@ -64,6 +62,25 @@ postinstall: consumer root detected -> /your/project
 ```
 
 > Don’t want auto-scaffold? Fork this package and remove the `postinstall` script.
+
+## 🔧 Configuration in Playwright
+
+```json
+  use: {
+   headless: false,
+   trace: "on-first-retry",
+ },
+
+ /* Configure projects for major browsers */
+ projects: [
+   {
+     name: "chromium",
+     use: {
+      channel: "chrome", // MacOs
+      baseUrl:"url base optional"
+       },
+   },
+```
 
 ---
 
