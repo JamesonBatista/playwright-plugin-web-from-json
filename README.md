@@ -49,7 +49,7 @@ Generate **Playwright** tests from **JSON files**. Point to a folder (e.g., `Fix
 In your consumer project:
 
 ```bash
-npm i -D @playwright/test
+npm init playwright
 npm i playwright-plugin-web-from-json
 npx playwright install
 ```
