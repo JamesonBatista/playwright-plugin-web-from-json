@@ -455,6 +455,70 @@ generateTestsFromJson(
     JSON.stringify(exampleJsonSnippets, null, 2) + "\n"
   );
 
+  // secund json
+  const exampleJsonPathSecond = path.join(
+    fixturesDir,
+    "plugin-example-voe-gol.json"
+  );
+  const exampleJsonSecond = {
+    describe: {
+      text: "Test in Voe Gol",
+      "case-key": {
+        title: "Buy ticket",
+        url: "https://www.voegol.com.br/nh/",
+        actions: [
+          {
+            loc: "#field_origem",
+            type: "São Paulo - Guarulhos - GRU",
+            click: "{type}",
+          },
+          {
+            loc: "[id='field_destino']",
+            type: "Recife - REC",
+            click: "#destino-dropdown-target ul li {type}",
+          },
+          { click: "#field_ida" },
+          {
+            loc: ".datepicker-picker .datepicker-main .days",
+            click: "15",
+          },
+
+          { click: "#field_volta" },
+          {
+            root: "#field_wrapper_volta",
+            loc: ".datepicker-picker .datepicker-main .days",
+            click: "20",
+          },
+          {
+            screenshot: {
+              path: "screens/gol.png",
+            },
+          },
+          { click: "[class='btn btn-primary']" },
+          {
+            waitRequest: {
+              urlIncludes: "gzip&ngsw-bypass=true",
+              status: 200,
+              timeout: 50000,
+            },
+          },
+          { expectVisible: "[novalidate='novalidate']", timeout: 30000 },
+          {
+            screenshot: {
+              path: "screens/gol-voe.png",
+            },
+          },
+          { wait: 3000 },
+        ],
+      },
+    },
+  };
+
+  writeFileIfNotExists(
+    exampleJsonPathSecond,
+    JSON.stringify(exampleJsonSecond, null, 2) + "\n"
+  );
+
   console.log("🎯 Setup completed.");
 }
 

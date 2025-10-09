@@ -62,6 +62,10 @@ export type Action = {
   wait?: number; // ms
   waitRequest?: WaitRequestInput;
 
+  parent?: string;
+  root?: string;
+  getText?: string;
+
   nth?: number;
   first?: boolean;
   last?: boolean;
