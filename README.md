@@ -6,38 +6,19 @@
 
 [![Npm package weekly downloads](https://badgen.net/npm/dy/playwright-plugin-web-from-json)](https://npmjs.com/package/playwright-plugin-web-from-json)
 
-Generate **Playwright** tests from **JSON files**. Point to a folder (e.g., `Fixtures/`) and get fully wired suites & test cases — no boilerplate specs.
-
-> ✨ **Auto-scaffold on install (postinstall):**
+> Runner features this README assumes (as per your code):
 >
-> - Creates **`Fixtures/`** at project root (if it doesn't exist).
-> - Creates **`Fixtures/example.json`** with a working example.
-> - Creates **`tests/json-plugin.spec.ts`** (or uses **`e2e/`** if present; if neither exists, it creates `tests/`).  
->   👉 Existing files are **not overwritten**.
+> - One **suite per JSON file** (scanned from a directory), `describe.serial(...)` per file.
+> - One **`context/page` per suite** (`beforeAll/afterAll`).
+> - Case-level `url` handling: omit (stay), empty string (open `baseURL`), relative (resolve vs `baseURL`), absolute (as-is).
+> - Action dispatcher supports: `root`, `parent`, `getText`, `type`, `typeSlow`, `click` (incl. `{type}`), `hover`, `press`, `check`, `uncheck`,
+>   `select`, `upload`, `expectText`, `expectVisible`, `expectUrl`, `waitRequest` (Playwright-native), `wait`, `screenshot`.
+> - Disambiguation/scope: `nth`, `first`, `last`, `within`, `frame` (array allowed for nested iframes).
+> - `before` chaining accepted on `describe` (string or list).
 
 ---
 
-## 📚 Table of Contents
-
-- [Installation](#-installation)
-- [Run locally with VS Code + Live Server](#-run-locally-with-vs-code--live-server)
-- [Quick Start](#-quick-start)
-- [How It Works](#-how-it-works)
-- [JSON Schema](#-json-schema)
-- [Supported Actions + Examples](#-supported-actions--examples)
-- [Disambiguation, Scoping & Iframes](#-disambiguation-scoping--iframes)
-- [Targets & Locator Rules](#-targets--locator-rules)
-- [Dynamic Values: `faker` and `date(...)`](#-dynamic-values-faker-and-date)
-- [Advanced Configuration](#-advanced-configuration)
-- [Troubleshooting](#-troubleshooting)
-- [Extensibility](#-extensibility)
-- [Full Examples](#-full-examples)
-- [FAQ](#-faq)
-- [License](#-license)
-
----
-
-## 🔧 Installation
+## Installation
 
 ```bash
 npm init playwright
@@ -45,57 +26,140 @@ npm i playwright-plugin-web-from-json
 npx playwright install
 ```
 
----
-
-## 🚀 Quick Start
-
-**`tests/json-plugin.spec.ts`**
+### Quick Start spec
 
 ```ts
 import { test } from "@playwright/test";
 import { generateTestsFromJson } from "playwright-plugin-web-from-json";
 import path from "path";
 
-generateTestsFromJson(
-  {
-    dir: path.resolve(process.cwd(), "Fixtures"),
-  },
-  test
-);
+generateTestsFromJson({ dir: path.resolve(process.cwd(), "Fixtures") }, test);
 ```
 
 ---
 
-## 🧠 How It Works
-
-- Each JSON file becomes a `describe.serial(...)` suite.
-- `browser.newContext()` / `page` per suite (`beforeAll/afterAll`).
-- `url` resolution rules:
-  - `url` omitted → stay on page.
-  - `url` empty (`""`) → navigate to baseURL.
-  - `url` relative → resolve against baseURL.
-  - `url` absolute → use as-is.
-
----
-
-## 🧩 JSON Schema
+## JSON file anatomy
 
 ```jsonc
 {
   "describe": {
-    "text": "Suite name",
-    "before": "../hooks/login.json",
-    "<case>": {
-      "title": "Case title",
-      "url": "/route-or-http",
+    "text": "Suite name (optional)",
+    "before": ["./00-login.json", "./01-seed.json"], // optional: prepend cases from other JSONs
+    "case-key": {
+      "title": "Case title (optional)",
+      "url": "/relative-or-https://absolute (optional)",
       "context": {
         "nth": 0,
         "first": false,
         "last": false,
         "within": ".container",
-        "frame": "iframe#app"
+        "frame": ["#outer-frame", "#inner-frame"]
       },
-      "actions": []
+      "actions": [
+        /* see below */
+      ]
+    }
+  }
+}
+```
+
+**Targeting rules**:
+
+- `"tag > text"` → `locator(tag, { hasText: text })`
+- CSS selector string → `locator(selector)`
+- Otherwise plain text → `getByText(text, { exact: true })`
+- Index defaults to `.first()` unless `nth/first/last` is provided.
+
+---
+
+# 1) Mini cookbook — single-action examples (with Playwright refs)
+
+### Clicks
+
+```jsonc
+{ "click": "#save" }
+// ref await page.locator('#save').first().click()
+
+{ "click": "Login" }
+// ref await page.getByText('Login', { exact: true }).first().click()
+
+{ "click": "a > Writing tests" }
+// ref await page.locator('a', { hasText: 'Writing tests' }).first().click()
+```
+
+### Typing
+
+```jsonc
+{ "loc": "#email", "type": "faker.internet.email()" }
+// ref await page.locator('#email').fill(faker.internet.email())
+
+{ "loc": "#name", "typeSlow": "John Doe" }
+// ref await page.locator('#name').fill(''); await page.locator('#name').pressSequentially('John Doe', { delay: 300 })
+```
+
+### Expect text
+
+```jsonc
+{ "expectText": { "equals": "Welcome!" }, "loc": "h1" }
+// ref await expect(page.locator('h1')).toHaveText('Welcome!')
+
+{ "expectText": { "contains": "orders" } }
+// ref await expect(page.locator('body')).toContainText('orders')
+```
+
+### Expect visible
+
+```jsonc
+{ "expectVisible": "#toast" }
+// ref await expect(page.locator('#toast')).toBeVisible()
+
+{ "expectVisible": { "timeout": 5000 }, "loc": ".ok" }
+// ref await expect(page.locator('.ok')).toBeVisible({ timeout: 5000 })
+```
+
+### URL
+
+```jsonc
+{ "expectUrl": { "equals": "https://app.example.com" } }
+// ref await expect(page).toHaveURL('https://app.example.com')
+
+{ "expectUrl": { "contains": "#/dashboard" } }
+// ref await expect(page).toHaveURL(/#\/dashboard/)
+```
+
+### Network wait
+
+```jsonc
+{ "waitRequest": { "urlIncludes": "/posts", "status": 200, "timeout": 30000 } }
+// ref await page.waitForResponse(r => r.url().includes('/posts') && r.status() === 200, { timeout: 30000 })
+```
+
+---
+
+# 2) MANY complete JSON files you can copy–paste
+
+Below are **20 full JSON suites** (each you can save to `Fixtures/*.json`).  
+They cover navigation, text/selector clicks, scoping, frames, forms, network, screenshots, and chaining.
+
+---
+
+## EX-01 — Basic navigation & URL
+
+```jsonc
+{
+  "describe": {
+    "text": "Basic navigation & URL",
+    "open": {
+      "title": "Open baseURL",
+      "url": "",
+      "actions": [{ "expectVisible": "h2 > Navigation & URL" }]
+    },
+    "hash-route": {
+      "title": "Hash routing to #/dashboard",
+      "actions": [
+        { "click": "#go-dashboard" },
+        { "expectUrl": { "contains": "#/dashboard" } }
+      ]
     }
   }
 }
@@ -103,211 +167,442 @@ generateTestsFromJson(
 
 ---
 
-## 🛠 Supported Actions + Examples
-
-### 🪜 `root`
-
-Sets a base locator for the current action.
+## EX-02 — Click by text, then assert text
 
 ```jsonc
-{ "root": ".modal", "click": "button > Confirm" }
-// ref const base = page.locator('.modal')
-// ref await base.locator('button', { hasText: 'Confirm' }).first().click()
+{
+  "describe": {
+    "text": "Clicks & Text",
+    "case": {
+      "url": "",
+      "actions": [
+        { "click": "Click by exact text" },
+        { "expectText": { "equals": "Clicked by text" }, "loc": "#text-result" }
+      ]
+    }
+  }
+}
 ```
 
 ---
 
-### ⬆️ `parent`
-
-Targets the parent element of a given text or selector.
+## EX-03 — Slow & fast typing, summary panel becomes visible
 
 ```jsonc
-{ "parent": "User Details", "click": "button > Edit" }
-// ref const parent = page.getByText('User Details', { exact: true }).locator('..')
-// ref await parent.locator('button', { hasText: 'Edit' }).click()
+{
+  "describe": {
+    "text": "Typing demo",
+    "fill": {
+      "url": "",
+      "actions": [
+        { "loc": "#email", "type": "faker.internet.email()" },
+        { "loc": "#name", "type": "faker.person.fullName()" },
+        { "loc": "#pass", "typeSlow": "SuperSecret123" },
+        { "click": "#btn-show-typed" },
+        { "expectVisible": "#typed-output" },
+        { "expectText": { "contains": "email=" }, "loc": "#typed-output" }
+      ]
+    }
+  }
+}
 ```
 
 ---
 
-### 📖 `getText`
-
-Extracts and logs text content of a selector.
+## EX-04 — Press key on field and assert output
 
 ```jsonc
-{ "getText": "h1 > Welcome" }
-// ref const text = await page.locator('h1', { hasText: 'Welcome' }).textContent()
-// ref console.log('[getText] =>', text)
+{
+  "describe": {
+    "text": "Press keys",
+    "enter": {
+      "url": "",
+      "actions": [
+        { "loc": "#press-input", "type": "Hello world" },
+        { "press": "Enter", "loc": "#press-input" },
+        { "expectText": { "equals": "Enter pressed!" }, "loc": "#press-output" }
+      ]
+    }
+  }
+}
 ```
 
 ---
 
-### 🖱️ `click`
+## EX-05 — Check, radio, select, read values
 
 ```jsonc
-{ "click": "#save" }
-// ref await page.locator('#save').first().click()
-{ "click": "Login" }
-// ref await page.getByText('Login', { exact: true }).first().click()
-{ "click": "a > Writing tests" }
-// ref await page.locator('a', { hasText: 'Writing tests' }).first().click()
+{
+  "describe": {
+    "text": "Forms",
+    "form": {
+      "url": "",
+      "actions": [
+        { "check": "#ck-terms" },
+        { "check": "input[name='plan'][value='pro']" },
+        { "select": { "label": "Brazil" }, "loc": "#country" },
+        { "click": "#check-read" },
+        { "expectText": { "contains": "terms=true" }, "loc": "#check-output" },
+        { "expectText": { "contains": "plan=pro" }, "loc": "#check-output" }
+      ]
+    }
+  }
+}
 ```
-
-> All clicks retry with `{ force: true }` on failure.
 
 ---
 
-### ⌨️ `type` / `typeSlow`
+## EX-06 — Flash message visible & then closed
 
 ```jsonc
-{ "loc": "#email", "type": "faker.internet.email()" }
-{ "loc": "#name", "typeSlow": "faker.person.fullName()" }
+{
+  "describe": {
+    "text": "Flash",
+    "flash": {
+      "url": "",
+      "actions": [
+        { "expectVisible": "#flash" },
+        {
+          "expectText": { "contains": "Your username is invalid!" },
+          "loc": "#flash"
+        },
+        { "click": "#close-flash" }
+      ]
+    }
+  }
+}
 ```
-
-> `typeSlow` uses `pressSequentially` with delay 300ms.
 
 ---
 
-### 🎯 `expectVisible`
+## EX-07 — Multiple matches: nth inside scope
 
 ```jsonc
-{ "expectVisible": "#toast", "timeout": 5000 }
-{ "expectVisible": { "timeout": 3000 }, "loc": "#toast" }
+{
+  "describe": {
+    "text": "Disambiguation: nth",
+    "nth": {
+      "url": "",
+      "actions": [
+        { "click": ".item", "within": "#repeat-scope", "nth": 1 },
+        {
+          "expectText": { "equals": "Clicked: Row #2" },
+          "loc": "#repeat-output"
+        }
+      ]
+    }
+  }
+}
 ```
 
 ---
 
-### ✅ `expectText`
+## EX-08 — Multiple matches: first & last
 
 ```jsonc
-{ "expectText": { "equals": "Welcome" }, "loc": "h1" }
-{ "expectText": { "contains": "orders" }, "loc": ".stats" }
+{
+  "describe": {
+    "text": "Disambiguation: first & last",
+    "first-last": {
+      "url": "",
+      "actions": [
+        { "click": ".item", "within": "#repeat-scope", "first": true },
+        {
+          "expectText": { "equals": "Clicked: Row #1" },
+          "loc": "#repeat-output"
+        },
+        { "click": ".item", "within": "#repeat-scope", "last": true },
+        {
+          "expectText": { "equals": "Clicked: Row #3" },
+          "loc": "#repeat-output"
+        }
+      ]
+    }
+  }
+}
 ```
 
 ---
 
-### 👀 `expectUrl`
+## EX-09 — Scoped click within container
 
 ```jsonc
-{ "expectUrl": { "equals": "https://app.example.com" } }
-{ "expectUrl": { "contains": "#/dashboard" } }
+{
+  "describe": {
+    "text": "Within scope",
+    "scoped": {
+      "url": "",
+      "actions": [
+        { "click": "Scoped Button B", "within": "#within-scope" },
+        {
+          "expectText": { "equals": "Within clicked: Scoped Button B" },
+          "loc": "#within-output"
+        }
+      ]
+    }
+  }
+}
 ```
 
 ---
 
-### 🌐 `waitRequest`
+## EX-10 — Iframe basic + expect visible inside frame
 
 ```jsonc
-{ "waitRequest": { "urlIncludes": "/api/orders", "status": 200 } }
+{
+  "describe": {
+    "text": "Iframe",
+    "frame": {
+      "url": "",
+      "actions": [
+        { "click": "#frame-btn", "frame": "#demo-frame" },
+        { "expectVisible": "#frame-toast", "frame": "#demo-frame" }
+      ]
+    }
+  }
+}
 ```
 
 ---
 
-### 🐭 `hover`
+## EX-11 — Network waitRequest (200) then text appears
 
 ```jsonc
-{ "hover": "#menu" }
+{
+  "describe": {
+    "text": "Network",
+    "posts": {
+      "url": "",
+      "actions": [
+        { "click": "#btn-fetch-posts" },
+        {
+          "waitRequest": {
+            "urlIncludes": "/posts",
+            "status": 200,
+            "timeout": 50000
+          }
+        },
+        { "expectText": { "contains": "status 200" }, "loc": "#net-output" }
+      ]
+    }
+  }
+}
 ```
 
 ---
 
-### 🎹 `press`
+## EX-12 — Network waitRequest with multiple URL fragments & status list
 
 ```jsonc
-{ "press": "Enter", "loc": "#input" }
-{ "press": "Control+A" }
+{
+  "describe": {
+    "text": "Network variants",
+    "user-or-summary": {
+      "url": "",
+      "actions": [
+        { "click": "#btn-fetch-user" },
+        {
+          "waitRequest": {
+            "urlIncludes": ["/users/1", "/users/"],
+            "status": [200, 204],
+            "timeout": 40000
+          }
+        },
+        { "expectText": { "contains": "status 200" }, "loc": "#net-output" }
+      ]
+    }
+  }
+}
 ```
-
-> Falls back to `page.keyboard.press()` when no locator given.
 
 ---
 
-### ☑️ `check` / `uncheck`
+## EX-13 — Screenshot full page and element
 
 ```jsonc
-{ "check": "#terms" }
-{ "check": true, "loc": "#accept" }
-{ "uncheck": "#subscribe" }
+{
+  "describe": {
+    "text": "Screenshots",
+    "shots": {
+      "url": "",
+      "actions": [
+        { "screenshot": { "path": "screens/full.png", "fullPage": true } },
+        {
+          "screenshot": { "path": "screens/card.png" },
+          "loc": "#card-screenshot"
+        }
+      ]
+    }
+  }
+}
 ```
 
 ---
 
-### 🔽 `select`
+## EX-14 — Hover tooltip becomes visible
 
 ```jsonc
-{ "select": { "label": "Brazil" }, "loc": "#country" }
-{ "select": { "value": ["BR","US"] }, "loc": "#multi-country" }
+{
+  "describe": {
+    "text": "Hover",
+    "tip": {
+      "url": "",
+      "actions": [{ "hover": "Hover me" }, { "expectVisible": "#hover-tip" }]
+    }
+  }
+}
 ```
 
 ---
 
-### 📤 `upload`
+## EX-15 — Use `parent` to climb and click a child
 
 ```jsonc
-{ "upload": ["tests/avatar.png", "tests/photo.png"], "loc": "input[type=file]" }
+{
+  "describe": {
+    "text": "Parent targeting",
+    "parent": {
+      "url": "",
+      "actions": [
+        {
+          "parent": "Clicks & Visibility",
+          "click": "button > Make toast visible"
+        },
+        { "expectVisible": "#selector-result" }
+      ]
+    }
+  }
+}
 ```
 
 ---
 
-### 🕓 `wait`
+## EX-16 — Use `root` to scope a block
 
 ```jsonc
-{ "wait": 1000 }
+{
+  "describe": {
+    "text": "Root scoping",
+    "root-scope": {
+      "url": "",
+      "actions": [
+        {
+          "root": ".card:has(h2:has-text(\"Clicks & Visibility\"))",
+          "click": "#btn-selector"
+        },
+        { "expectVisible": "#selector-result" }
+      ]
+    }
+  }
+}
 ```
 
 ---
 
-### 📸 `screenshot`
+## EX-17 — `getText`, log and reuse mentally
 
 ```jsonc
-{ "screenshot": { "path": "screens/page.png", "fullPage": true } }
+{
+  "describe": {
+    "text": "getText",
+    "read": {
+      "url": "",
+      "actions": [
+        { "getText": "h2 > Typing & Keys" },
+        { "click": "#btn-show-typed" } // nothing uses the text programmatically, but it logs it
+      ]
+    }
+  }
+}
 ```
 
 ---
 
-### 🧩 Notes
-
-- Default index: `.first()` if no `nth/first/last`.
-- `url: ""` navigates to baseURL.
-- Clicks auto-retry with `{ force: true }`.
-- Supports `tag > text` pattern in locators.
-
----
-
-## 🎯 Disambiguation, Scoping & Iframes
-
-Use `nth`, `first`, `last`, `within`, `frame`, and combine with `root` or `parent` for nested structures.
-
----
-
-## 🧪 Dynamic Values: `faker` and `date(...)`
+## EX-18 — Press without locator (page-level keyboard)
 
 ```jsonc
-{ "loc": "#email", "type": "faker.internet.email()" }
-{ "loc": "#start", "type": "date(today+7, \"dd/MM/yyyy\")" }
+{
+  "describe": {
+    "text": "Global press",
+    "keyboard": {
+      "url": "",
+      "actions": [{ "press": "Control+A" }, { "wait": 200 }]
+    }
+  }
+}
 ```
 
 ---
 
-## 🧷 Advanced Configuration
+## EX-19 — Select by different strategies
 
-```ts
-import { test } from "@playwright/test";
-import { generateTestsFromJson } from "playwright-plugin-web-from-json";
-
-generateTestsFromJson(
-  { dir: "Fixtures", baseURLOverride: "https://your-app.example" },
-  test
-);
+```jsonc
+{
+  "describe": {
+    "text": "Select strategies",
+    "select": {
+      "url": "",
+      "actions": [
+        { "select": { "index": 1 }, "loc": "#country" },
+        { "select": { "label": "United States" }, "loc": "#country" },
+        { "select": { "value": "DE" }, "loc": "#country" }
+      ]
+    }
+  }
+}
 ```
 
 ---
 
-## 🧾 Full Examples
+## EX-20 — Upload one and multiple files
 
-(keep original example suite listings here — unchanged)
+```jsonc
+{
+  "describe": {
+    "text": "Uploads",
+    "upload": {
+      "url": "",
+      "actions": [
+        { "upload": "tests/fixtures/avatar.png", "loc": "input[type=file]" },
+        { "upload": ["tests/a.png", "tests/b.png"], "loc": "#file" }
+      ]
+    }
+  }
+}
+```
 
 ---
 
-## 📄 License
+# 3) Before chaining (reuse steps across suites)
+
+```jsonc
+{
+  "describe": {
+    "text": "Main flow reusing hooks",
+    "before": ["./00-login.json", "./01-select-tenant.json"],
+    "do-stuff": {
+      "title": "Open dashboard and check a tile",
+      "url": "/dashboard",
+      "actions": [
+        { "expectVisible": "h2 > Dashboard" },
+        { "click": "a > Settings" },
+        { "expectVisible": "h1 > Settings" }
+      ]
+    }
+  }
+}
+```
+
+---
+
+## Troubleshooting tips
+
+- **Multiple matches** → use `within` + `nth/first/last`.
+- **Hidden element on click** → runner retries with `{ force: true }`, but you should consider `expectVisible` first.
+- **Relative URL without baseURL** → set `use.baseURL` in Playwright config or supply `baseURLOverride` in `generateTestsFromJson`.
+- **`waitRequest` never resolves** → check `urlIncludes` array and status code(s); verify CORS/HTTPS in your environment.
+- **Iframes** → for nested iframes use `frame: ["#outer", "#inner"]`.
+
+---
 
 MIT
