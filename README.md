@@ -16,7 +16,6 @@
 
 ## 🧭 Quick Menu
 
-
 - [📚 20+ Realistic JSON Examples (correct structure)](#-20-realistic-json-examples-correct-structure)
   - [A. Minimal suite](#a-minimal-suite)
   - [B. Two cases in one describe](#b-two-cases-in-one-describe)
@@ -61,13 +60,55 @@ The **ONLY valid** top-level key is `describe`. Inside it:
 - `"run"`: optional describe-level function (string Method name in `RunPluginFunctions`)
 - One or more **case keys** (you choose the key): objects with `title`, `url`, `actions`, and optional `context`.
 
-```jsonc
+### Using url
+
+The url can be used both in the `describe` and also within the `test`, Login, and New Register.
+
+Ways to use the url:
+
+1. `url`: "http..." _the code will use the entire url provided_
+
+```json
+{ "url": "https://www.example.com" }
+```
+
+2. `url`: "/procuts" _url provided + baseUrl in `playwright.config.ts`_
+
+```json
+{ "url": "/produts" }
+
+// {"url": "baseUrl" + "/products"}
+```
+
+3.  `without the url key` _when the url key is missing, the test will continue on the current page._
+
+```json
 {
   "describe": {
     "text": "Test in App",
+    "url": "https://jamesonbatista.github.io/projectqatesterweb/",
+    "First Test Login": {
+      "title": "All Tests",
+      "actions": [{ "click": "Login" }]
+    },
+    "Second Test Register": {
+      // the url was not provided
+      "title": "All Tests",
+      "actions": [{ "click": "Login" }]
+    }
+  }
+}
+```
+
+---
+
+```json
+{
+  "describe": {
+    "text": "Test in App",
+    "url": "https://jamesonbatista.github.io/projectqatesterweb/",
     "case-key": {
       "title": "All Tests",
-      "url": "https://jamesonbatista.github.io/projectqatesterweb/",
       "actions": [
         { "click": "Login" },
         { "loc": "#username", "type": "faker.internet.email()" },
@@ -86,6 +127,7 @@ You can also have a **bare describe header** (no cases yet):
 {
   "describe": {
     "text": "Test in App",
+    "url": "https://jamesonbatista.github.io/projectqatesterweb/",
     "run": "" // optional (or omit)
   }
 }
@@ -150,49 +192,55 @@ Per **action** (or via **`context`** at case-level, then overridden by actions):
 
 ## 🛠️ Actions Reference → Playwright
 
-| Action                     | JSON (shape)                                                                                           | Playwright reference                                                                                  |
-|---------------------------|----------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------|
-| `type`                    | `{ "loc": "#user", "type": "John" }`                                                                     | `await page.locator('#user').fill('John')`                                                           |
-| `typeSlow`                | `{ "loc": "#msg", "typeSlow": "Hello" }`                                                                 | `await loc.fill(''); await loc.pressSequentially('Hello', { delay: 300 })`                           |
-| `click`                   | `{ "click": "button > Save" }`                                                                           | `await page.locator('button', { hasText: 'Save' }).click()`                                          |
-| `click: "{type}"`         | `{ "click": "{type}" }`                                                                                  | Click element showing last typed text                                                                 |
-| `click: "<prefix> {type}"`| `{ "click": "ul.results {type}" }`                                                                       | Click descendant with last typed text                                                                 |
-| `hover`                   | `{ "hover": ".menu" }`                                                                                   | `await page.locator('.menu').hover()`                                                                 |
-| `press`                   | `{ "press": "Enter", "loc": "#q" }`                                                                      | `await page.locator('#q').press('Enter')` or `await page.keyboard.press('Enter')`                    |
-| `check` / `uncheck`       | `{ "check": "#agree" }`                                                                                  | `await page.locator('#agree').check()` / `.uncheck()`                                                |
-| `select`                  | `{ "select": { "label": "Brazil" }, "loc": "#country" }`                                                 | `await page.locator('#country').selectOption({ label: 'Brazil' })`                                   |
-| `upload`                  | `{ "upload": "fixtures/a.png", "loc": "input[type=file]" }`                                              | `await page.locator('input[type=file]').setInputFiles('fixtures/a.png')`                             |
-| `exist`                   | `{ "exist": "#close-popup", "click": "#close-popup" }`                                                   | Soft check then run remaining keys if element exists                                                  |
-| `getText`                 | `{ "getText": "h1" }`                                                                                    | `const text = await page.locator('h1').textContent()`                                                |
-| `expectText`              | `{ "expectText": { "contains": "Welcome" } }`                                                            | `await expect(page.locator('body')).toContainText('Welcome')`                                        |
-| `expectVisible`           | `{ "expectVisible": "#toast" }`                                                                          | `await expect(page.locator('#toast')).toBeVisible()`                                                 |
-| `expectUrl`               | `{ "expectUrl": { "contains": "/home" } }`                                                               | `await expect(page).toHaveURL(/\\/home/)`                                                            |
-| `waitRequest`             | `{ "waitRequest": { "url": "/api/save", "status": 200 } }`                                               | `await handleWaitRequest(page, { url:'/api/save', status:200 })`                                     |
-| `wait`                    | `{ "wait": 800 }`                                                                                        | `await page.waitForTimeout(800)`                                                                     |
-| `screenshot`              | `{ "screenshot": { "path": "shots/home.png", "fullPage": true } }`                                       | `await page.screenshot({ path:'shots/home.png', fullPage:true })`                                    |
-| `forEach`                 | `{ "forEach": { "items": "<selector>", "actions": [ ... ] } }`                                           | Iterate matched elements and run nested actions in each element's scope                              |
-| `scrollTo`                | `"top"|"bottom" \| { "to": "<selector|text>" } \| { "x": 0, "y": 800, "behavior"?: "auto"|"smooth" }`    | `window.scrollTo(...)` / `locator.scrollIntoViewIfNeeded()`                                          |
-| `expectValue`             | `{ "expectValue": { "loc": "<selector>", "equals"?: "...", "contains"?: "...", "timeout"?: 3000 } }`     | `await expect(locator).toHaveValue(...)` or `expect(await locator.inputValue()).toContain(...)`      |
-| `route`                   | `{ "route": { "url"?: "<glob>", "mock"?: {...}, "block"?: "<glob>"\|"[...]", "unroute"?: "<glob>" } }`  | `page.route('**/api', handler)` / `route.fulfill(...)` / `route.abort()` / `page.unroute(...)`       |
+| Action                     | JSON (shape)                                                                                           | Playwright reference                                                                            |
+| -------------------------- | ------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------- | --------------------------------------------------- | ----------- | ----------------------------------------------------------- |
+| `type`                     | `{ "loc": "#user", "type": "John" }`                                                                   | `await page.locator('#user').fill('John')`                                                      |
+| `typeSlow`                 | `{ "loc": "#msg", "typeSlow": "Hello" }`                                                               | `await loc.fill(''); await loc.pressSequentially('Hello', { delay: 300 })`                      |
+| `click`                    | `{ "click": "button > Save" }`                                                                         | `await page.locator('button', { hasText: 'Save' }).click()`                                     |
+| `click: "{type}"`          | `{ "click": "{type}" }`                                                                                | Click element showing last typed text                                                           |
+| `click: "<prefix> {type}"` | `{ "click": "ul.results {type}" }`                                                                     | Click descendant with last typed text                                                           |
+| `hover`                    | `{ "hover": ".menu" }`                                                                                 | `await page.locator('.menu').hover()`                                                           |
+| `press`                    | `{ "press": "Enter", "loc": "#q" }`                                                                    | `await page.locator('#q').press('Enter')` or `await page.keyboard.press('Enter')`               |
+| `check` / `uncheck`        | `{ "check": "#agree" }`                                                                                | `await page.locator('#agree').check()` / `.uncheck()`                                           |
+| `select`                   | `{ "select": { "label": "Brazil" }, "loc": "#country" }`                                               | `await page.locator('#country').selectOption({ label: 'Brazil' })`                              |
+| `upload`                   | `{ "upload": "fixtures/a.png", "loc": "input[type=file]" }`                                            | `await page.locator('input[type=file]').setInputFiles('fixtures/a.png')`                        |
+| `exist`                    | `{ "exist": "#close-popup", "click": "#close-popup" }`                                                 | Soft check then run remaining keys if element exists                                            |
+| `getText`                  | `{ "getText": "h1" }`                                                                                  | `const text = await page.locator('h1').textContent()`                                           |
+| `expectText`               | `{ "expectText": { "contains": "Welcome" } }`                                                          | `await expect(page.locator('body')).toContainText('Welcome')`                                   |
+| `expectVisible`            | `{ "expectVisible": "#toast" }`                                                                        | `await expect(page.locator('#toast')).toBeVisible()`                                            |
+| `expectUrl`                | `{ "expectUrl": { "contains": "/home" } }`                                                             | `await expect(page).toHaveURL(/\\/home/)`                                                       |
+| `waitRequest`              | `{ "waitRequest": { "url": "/api/save", "status": 200 } }`                                             | `await handleWaitRequest(page, { url:'/api/save', status:200 })`                                |
+| `wait`                     | `{ "wait": 800 }`                                                                                      | `await page.waitForTimeout(800)`                                                                |
+| `screenshot`               | `{ "screenshot": { "path": "shots/home.png", "fullPage": true } }`                                     | `await page.screenshot({ path:'shots/home.png', fullPage:true })`                               |
+| `forEach`                  | `{ "forEach": { "items": "<selector>", "actions": [ ... ] } }`                                         | Iterate matched elements and run nested actions in each element's scope                         |
+| `scrollTo`                 | `"top"                                                                                                 | "bottom" \| { "to": "<selector                                                                  | text>" } \| { "x": 0, "y": 800, "behavior"?: "auto" | "smooth" }` | `window.scrollTo(...)` / `locator.scrollIntoViewIfNeeded()` |
+| `expectValue`              | `{ "expectValue": { "loc": "<selector>", "equals"?: "...", "contains"?: "...", "timeout"?: 3000 } }`   | `await expect(locator).toHaveValue(...)` or `expect(await locator.inputValue()).toContain(...)` |
+| `route`                    | `{ "route": { "url"?: "<glob>", "mock"?: {...}, "block"?: "<glob>"\|"[...]", "unroute"?: "<glob>" } }` | `page.route('**/api', handler)` / `route.fulfill(...)` / `route.abort()` / `page.unroute(...)`  |
 
 ---
 
 ### Examples in context (new actions)
 
 #### 1) `forEach` — iterate cards and act inside each item scope
-```jsonc
+
+```json
 {
   "describe": {
     "text": "forEach demo",
+    "url": "/products",
     "each-product": {
       "title": "Open and close details for each product card",
-      "url": "/products",
       "actions": [
-        { "forEach": { "items": ".product-card", "actions": [
-          { "click": "button:has-text('Details')" }, // await page.locator("button:has-text('Details')").click()
-          { "expectVisible": "h1 > text" },          // await expect(page.locator("h1", { hasText: "text" })).toBeVisible()
-          { "click": "button:has-text('Close')" }    // await page.locator("button:has-text('Close')").click()
-        ] } }
+        {
+          "forEach": {
+            "items": ".product-card",
+            "actions": [
+              { "click": "button:has-text('Details')" }, // await page.locator("button:has-text('Details')").click()
+              { "expectVisible": "h1 > text" }, // await expect(page.locator("h1", { hasText: "text" })).toBeVisible()
+              { "click": "button:has-text('Close')" } // await page.locator("button:has-text('Close')").click()
+            ]
+          }
+        }
       ]
     }
   }
@@ -200,16 +248,17 @@ Per **action** (or via **`context`** at case-level, then overridden by actions):
 ```
 
 #### 2) `scrollTo` — bottom, to a target, and by coordinates
+
 ```jsonc
 {
   "describe": {
     "text": "scrollTo bottom",
+    "url": "/long-page",
     "footer-visible": {
       "title": "Footer after scroll",
-      "url": "/long-page",
       "actions": [
-        { "scrollTo": "bottom" },                    // await page.evaluate(() => window.scrollTo({ top: document.body.scrollHeight, behavior: "auto" }))
-        { "expectVisible": "footer.site-footer" }    // await expect(page.locator("footer.site-footer")).toBeVisible()
+        { "scrollTo": "bottom" }, // await page.evaluate(() => window.scrollTo({ top: document.body.scrollHeight, behavior: "auto" }))
+        { "expectVisible": "footer.site-footer" } // await expect(page.locator("footer.site-footer")).toBeVisible()
       ]
     }
   }
@@ -220,12 +269,12 @@ Per **action** (or via **`context`** at case-level, then overridden by actions):
 {
   "describe": {
     "text": "scrollTo target",
+    "url": "/docs",
     "section-into-view": {
       "title": "Jump to Installation section",
-      "url": "/docs",
       "actions": [
         { "scrollTo": { "to": "h2:has-text('Installation')" } }, // await page.locator("h2:has-text('Installation')").scrollIntoViewIfNeeded()
-        { "expectVisible": "p:has-text('npm install')" }         // await expect(page.locator("p:has-text('npm install')")).toBeVisible()
+        { "expectVisible": "p:has-text('npm install')" } // await expect(page.locator("p:has-text('npm install')")).toBeVisible()
       ]
     }
   }
@@ -240,7 +289,7 @@ Per **action** (or via **`context`** at case-level, then overridden by actions):
       "title": "Scroll by coordinates",
       "url": "/canvas-playground",
       "actions": [
-        { "scrollTo": { "x": 0, "y": 800 } },        // await page.evaluate(() => window.scrollTo({ top: 800, left: 0, behavior: "auto" }))
+        { "scrollTo": { "x": 0, "y": 800 } }, // await page.evaluate(() => window.scrollTo({ top: 800, left: 0, behavior: "auto" }))
         { "expectVisible": "div.widget:has-text('Reached')" } // await expect(page.locator("div.widget:has-text('Reached')")).toBeVisible()
       ]
     }
@@ -249,17 +298,23 @@ Per **action** (or via **`context`** at case-level, then overridden by actions):
 ```
 
 #### 3) `expectValue` — assert input/textarea value
+
 ```jsonc
 {
   "describe": {
     "text": "expectValue equals",
+    "url": "/profile",
     "profile-email": {
       "title": "Exact email value",
-      "url": "/profile",
       "actions": [
-        { "click": "input[name='email']" },          // await page.locator("input[name='email']").click()
-        { "type": "jam@example.com" , "loc": "input[name='email']" }, // await page.locator("input[name='email']").fill("jam@example.com")
-        { "expectValue": { "loc": "input[name='email']", "equals": "jam@example.com" } } // await expect(page.locator("input[name='email']")).toHaveValue("jam@example.com")
+        { "click": "input[name='email']" }, // await page.locator("input[name='email']").click()
+        { "type": "jam@example.com", "loc": "input[name='email']" }, // await page.locator("input[name='email']").fill("jam@example.com")
+        {
+          "expectValue": {
+            "loc": "input[name='email']",
+            "equals": "jam@example.com"
+          }
+        } // await expect(page.locator("input[name='email']")).toHaveValue("jam@example.com")
       ]
     }
   }
@@ -270,11 +325,11 @@ Per **action** (or via **`context`** at case-level, then overridden by actions):
 {
   "describe": {
     "text": "expectValue contains",
+    "url": "/search",
     "search-query": {
       "title": "Query contains substring",
-      "url": "/search",
       "actions": [
-        { "click": "input[name='q']" },              // await page.locator("input[name='q']").click()
+        { "click": "input[name='q']" }, // await page.locator("input[name='q']").click()
         { "type": "Playwright runner json", "loc": "input[name='q']" }, // await page.locator("input[name='q']").fill("Playwright runner json")
         { "expectValue": { "loc": "input[name='q']", "contains": "runner" } } // expect(await page.locator("input[name='q']").inputValue()).toContain("runner")
       ]
@@ -284,17 +339,23 @@ Per **action** (or via **`context`** at case-level, then overridden by actions):
 ```
 
 #### 4) `route` — mock, block and unroute
+
 ```jsonc
 {
   "describe": {
     "text": "route mock",
+    "url": "/users",
     "mock-users": {
       "title": "Mock users endpoint",
-      "url": "/users",
       "actions": [
-        { "route": { "url": "**/api/users", "mock": { "status": 200, "json": [{ "id": 1, "name": "Neo" }] } } }, // await page.route("**/api/users", r => r.fulfill({ status: 200, headers: { "content-type": "application/json" }, body: JSON.stringify([{ id: 1, name: "Neo" }]) }))
+        {
+          "route": {
+            "url": "**/api/users",
+            "mock": { "status": 200, "json": [{ "id": 1, "name": "Neo" }] }
+          }
+        }, // await page.route("**/api/users", r => r.fulfill({ status: 200, headers: { "content-type": "application/json" }, body: JSON.stringify([{ id: 1, name: "Neo" }]) }))
         { "click": "button:has-text('Load Users')" }, // await page.locator("button:has-text('Load Users')").click()
-        { "expectVisible": "li:has-text('Neo')" }     // await expect(page.locator("li:has-text('Neo')")).toBeVisible()
+        { "expectVisible": "li:has-text('Neo')" } // await expect(page.locator("li:has-text('Neo')")).toBeVisible()
       ]
     }
   }
@@ -305,13 +366,13 @@ Per **action** (or via **`context`** at case-level, then overridden by actions):
 {
   "describe": {
     "text": "route block",
+    "url": "/home",
     "block-assets": {
       "title": "Block analytics and PNG",
-      "url": "/home",
       "actions": [
         { "route": { "block": ["**/analytics/**", "**/*.png"] } }, // await page.route("**/analytics/**", r => r.abort()); await page.route("**/*.png", r => r.abort())
-        { "wait": 300 },                                           // await page.waitForTimeout(300)
-        { "expectVisible": "h1:has-text('Home')" }                 // await expect(page.locator("h1:has-text('Home')")).toBeVisible()
+        { "wait": 300 }, // await page.waitForTimeout(300)
+        { "expectVisible": "h1:has-text('Home')" } // await expect(page.locator("h1:has-text('Home')")).toBeVisible()
       ]
     }
   }
@@ -322,12 +383,12 @@ Per **action** (or via **`context`** at case-level, then overridden by actions):
 {
   "describe": {
     "text": "route unroute",
+    "url": "/users",
     "remove-mock": {
       "title": "Unroute previous mock",
-      "url": "/users",
       "actions": [
-        { "route": { "unroute": "**/api/users" } },  // await page.unroute("**/api/users")
-        { "click": "button:has-text('Reload')" },    // await page.locator("button:has-text('Reload')").click()
+        { "route": { "unroute": "**/api/users" } }, // await page.unroute("**/api/users")
+        { "click": "button:has-text('Reload')" }, // await page.locator("button:has-text('Reload')").click()
         { "waitRequest": { "url": "**/api/users", "method": "GET" } } // await handleWaitRequest(page, { url: "**/api/users", method: "GET" })
       ]
     }
@@ -342,13 +403,14 @@ Per **action** (or via **`context`** at case-level, then overridden by actions):
 > Replace public URLs with your app when adopting. All examples use **your** describe shape.
 
 ### A. Minimal suite
+
 ```json
 {
   "describe": {
     "text": "Smoke — Example.com",
+    "url": "https://example.com",
     "home": {
       "title": "Open Example",
-      "url": "https://example.com",
       "actions": [{ "expectVisible": "h1" }]
     }
   }
@@ -356,18 +418,18 @@ Per **action** (or via **`context`** at case-level, then overridden by actions):
 ```
 
 ### B. Two cases in one describe
+
 ```json
 {
   "describe": {
     "text": "Example navigation",
+    "url": "https://example.com",
     "home": {
       "title": "Home is visible",
-      "url": "https://example.com",
       "actions": [{ "expectVisible": "h1" }]
     },
     "go-details": {
       "title": "Go to details",
-      "url": "https://example.com",
       "actions": [
         { "click": "a > More information" },
         { "expectUrl": { "contains": "iana.org" } }
@@ -378,6 +440,7 @@ Per **action** (or via **`context`** at case-level, then overridden by actions):
 ```
 
 ### C. Wikipedia search
+
 ```json
 {
   "describe": {
@@ -397,13 +460,14 @@ Per **action** (or via **`context`** at case-level, then overridden by actions):
 ```
 
 ### D. MDN search + URL check
+
 ```json
 {
   "describe": {
     "text": "MDN",
+    "url": "https://developer.mozilla.org",
     "search-fetch": {
       "title": "Search fetch",
-      "url": "https://developer.mozilla.org",
       "actions": [
         { "type": "fetch", "loc": "input[type='search']" },
         { "press": "Enter", "loc": "input[type='search']" },
@@ -415,6 +479,7 @@ Per **action** (or via **`context`** at case-level, then overridden by actions):
 ```
 
 ### E. Playwright.dev navigation
+
 ```json
 {
   "describe": {
@@ -433,6 +498,7 @@ Per **action** (or via **`context`** at case-level, then overridden by actions):
 ```
 
 ### F. npmjs search + expectVisible
+
 ```json
 {
   "describe": {
@@ -451,6 +517,7 @@ Per **action** (or via **`context`** at case-level, then overridden by actions):
 ```
 
 ### G. DuckDuckGo slow type + {type} click
+
 ```json
 {
   "describe": {
@@ -469,6 +536,7 @@ Per **action** (or via **`context`** at case-level, then overridden by actions):
 ```
 
 ### H. Example.com full-page screenshot
+
 ```json
 {
   "describe": {
@@ -485,13 +553,14 @@ Per **action** (or via **`context`** at case-level, then overridden by actions):
 ```
 
 ### I. W3Schools iframe input
+
 ```json
 {
   "describe": {
     "text": "W3Schools Iframe",
+    "url": "https://www.w3schools.com/html/tryit.asp?filename=tryhtml_input_text",
     "input-in-iframe": {
       "title": "Type inside iframe",
-      "url": "https://www.w3schools.com/html/tryit.asp?filename=tryhtml_input_text",
       "actions": [
         {
           "iframe": "#iframeResult",
@@ -507,13 +576,14 @@ Per **action** (or via **`context`** at case-level, then overridden by actions):
 ```
 
 ### J. W3Schools select dropdown
+
 ```json
 {
   "describe": {
     "text": "W3Schools Select",
+    "url": "https://www.w3schools.com/tags/tryit.asp?filename=tryhtml_select",
     "select-demo": {
       "title": "Pick Saab",
-      "url": "https://www.w3schools.com/tags/tryit.asp?filename=tryhtml_select",
       "actions": [
         {
           "iframe": "#iframeResult",
@@ -528,13 +598,14 @@ Per **action** (or via **`context`** at case-level, then overridden by actions):
 ```
 
 ### K. W3Schools file upload
+
 ```json
 {
   "describe": {
     "text": "W3Schools Upload",
+    "url": "https://www.w3schools.com/tags/tryit.asp?filename=tryhtml5_input_type_file",
     "upload-demo": {
       "title": "Upload a file",
-      "url": "https://www.w3schools.com/tags/tryit.asp?filename=tryhtml5_input_type_file",
       "actions": [
         {
           "iframe": "#iframeResult",
@@ -549,6 +620,7 @@ Per **action** (or via **`context`** at case-level, then overridden by actions):
 ```
 
 ### L. ToDoMVC check/uncheck
+
 ```json
 {
   "describe": {
@@ -570,6 +642,7 @@ Per **action** (or via **`context`** at case-level, then overridden by actions):
 ```
 
 ### M. Press keys (locator & page)
+
 ```json
 {
   "describe": {
@@ -584,6 +657,7 @@ Per **action** (or via **`context`** at case-level, then overridden by actions):
 ```
 
 ### N. `exist` gate (optional UI)
+
 ```json
 {
   "describe": {
@@ -601,6 +675,7 @@ Per **action** (or via **`context`** at case-level, then overridden by actions):
 ```
 
 ### O. `getText` + assert body
+
 ```json
 {
   "describe": {
@@ -618,6 +693,7 @@ Per **action** (or via **`context`** at case-level, then overridden by actions):
 ```
 
 ### P. waitRequest + wait
+
 ```json
 {
   "describe": {
@@ -636,6 +712,7 @@ Per **action** (or via **`context`** at case-level, then overridden by actions):
 ```
 
 ### Q. expectUrl equals/contains
+
 ```json
 {
   "describe": {
@@ -653,6 +730,7 @@ Per **action** (or via **`context`** at case-level, then overridden by actions):
 ```
 
 ### R. describe-level run + tokens
+
 ```json
 {
   "describe": {
@@ -673,6 +751,7 @@ Per **action** (or via **`context`** at case-level, then overridden by actions):
 ```
 
 ### S. Nested frames + parent climbs
+
 ```json
 {
   "describe": {
@@ -695,6 +774,7 @@ Per **action** (or via **`context`** at case-level, then overridden by actions):
 ```
 
 ### T. Complex table with nth & within
+
 ```json
 {
   "describe": {
