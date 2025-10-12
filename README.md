@@ -16,16 +16,7 @@
 
 ## 🧭 Quick Menu
 
-- [⚙️ Install](#%EF%B8%8F-install)
-- [🧱 JSON Shape (correct!)](#-json-shape-correct)
-- [🧩 Concepts](#-concepts)
-  - [🔌 `run` at describe-level & action-level](#-run-at-describe-level--action-level)
-  - [🌍 `url` handling](#-url-handling)
-  - [🧭 Scoping: frame/root/parent/index/within](#-scoping-framerootparentindexwithin)
-  - [🎯 Targeting rules](#-targeting-rules)
-  - [🔢 Indexing (nth/first/last)](#-indexing-nthfirstlast)
-  - [🧠 Tokens & dynamic strings](#-tokens--dynamic-strings)
-- [🛠️ Actions Reference → Playwright](#%EF%B8%8F-actions-reference--playwright)
+
 - [📚 20+ Realistic JSON Examples (correct structure)](#-20-realistic-json-examples-correct-structure)
   - [A. Minimal suite](#a-minimal-suite)
   - [B. Two cases in one describe](#b-two-cases-in-one-describe)
@@ -108,11 +99,11 @@ You can also have a **bare describe header** (no cases yet):
 
 ### 🔌 `run` at describe-level & action-level
 
-- **Describe-level**: _Your json-loader may propagate this to each case before URL resolution._ (If you prefer case-local only, keep it at the case/action level.)
+- **Describe-level**: may be propagated to each case before URL resolution.
 - **Case-level**: runs before navigating (sets `vars.resultFunc`).
 - **Action-level**: short-circuits that action; it only runs the function and stores `vars.resultFunc`.
 
-`RunPluginFunctions` loader order (from your runner):
+`RunPluginFunctions` loader order:
 
 1. `opts.functionsPath` (if provided) → 2) `help/plugin-func.ts` → 3) `help/plugin-func.js`
 
@@ -152,31 +143,197 @@ Per **action** (or via **`context`** at case-level, then overridden by actions):
 ### 🧠 Tokens & dynamic strings
 
 - Interpolation runs on common string fields (e.g., `click`, `loc`, `expectText.equals`, etc.).
-- `type` / `typeSlow` also pass through your `resolveDynamic(...)` (e.g., `faker.internet.email()`).
+- `type` / `typeSlow` also pass through `resolveDynamic(...)` (e.g., `faker.internet.email()`).
 - Token examples: `{resultFunc}`, `{resultFunc.email}`, `{resultFunc.user.name}`.
 
 ---
 
 ## 🛠️ Actions Reference → Playwright
 
-| Action                     | JSON                                                               | Playwright reference                                                              |
-| -------------------------- | ------------------------------------------------------------------ | --------------------------------------------------------------------------------- |
-| `type`                     | `{ "loc": "#user", "type": "John" }`                               | `await page.locator('#user').fill('John')`                                        |
-| `typeSlow`                 | `{ "loc": "#msg", "typeSlow": "Hello" }`                           | `await loc.fill(''); await loc.pressSequentially('Hello', { delay: 300 })`        |
-| `click`                    | `{ "click": "button > Save" }`                                     | `await page.locator('button', { hasText: 'Save' }).click()`                       |
-| `click: "{type}"`          | `{ "click": "{type}" }`                                            | Click element showing last typed text                                             |
-| `click: "<prefix> {type}"` | `{ "click": "ul.results {type}" }`                                 | Click descendant with last typed text                                             |
-| `hover`                    | `{ "hover": ".menu" }`                                             | `await page.locator('.menu').hover()`                                             |
-| `press`                    | `{ "press": "Enter", "loc": "#q" }`                                | `await page.locator('#q').press('Enter')` or `await page.keyboard.press('Enter')` |
-| `check`/`uncheck`          | `{ "check": "#agree" }`                                            | `await page.locator('#agree').check()` / `.uncheck()`                             |
-| `select`                   | `{ "select": { "label": "Brazil" }, "loc": "#country" }`           | `await page.locator('#country').selectOption({ label: 'Brazil' })`                |
-| `upload`                   | `{ "upload": "fixtures/a.png", "loc": "input[type=file]" }`        | `await page.locator('input[type=file]').setInputFiles('fixtures/a.png')`          |
-| `expectText`               | `{ "expectText": { "contains": "Welcome" } }`                      | `await expect(page.locator('body')).toContainText('Welcome')`                     |
-| `expectVisible`            | `{ "expectVisible": "#toast" }`                                    | `await expect(page.locator('#toast')).toBeVisible()`                              |
-| `expectUrl`                | `{ "expectUrl": { "contains": "/home" } }`                         | `await expect(page).toHaveURL(/\/home/)`                                          |
-| `waitRequest`              | `{ "waitRequest": { "url": "/api/save", "status": 200 } }`         | `await handleWaitRequest(page, { url:'/api/save', status:200 })`                  |
-| `wait`                     | `{ "wait": 800 }`                                                  | `await page.waitForTimeout(800)`                                                  |
-| `screenshot`               | `{ "screenshot": { "path": "shots/home.png", "fullPage": true } }` | `await page.screenshot({ path:'shots/home.png', fullPage:true })`                 |
+| Action                     | JSON (shape)                                                                                           | Playwright reference                                                                                  |
+|---------------------------|----------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------|
+| `type`                    | `{ "loc": "#user", "type": "John" }`                                                                     | `await page.locator('#user').fill('John')`                                                           |
+| `typeSlow`                | `{ "loc": "#msg", "typeSlow": "Hello" }`                                                                 | `await loc.fill(''); await loc.pressSequentially('Hello', { delay: 300 })`                           |
+| `click`                   | `{ "click": "button > Save" }`                                                                           | `await page.locator('button', { hasText: 'Save' }).click()`                                          |
+| `click: "{type}"`         | `{ "click": "{type}" }`                                                                                  | Click element showing last typed text                                                                 |
+| `click: "<prefix> {type}"`| `{ "click": "ul.results {type}" }`                                                                       | Click descendant with last typed text                                                                 |
+| `hover`                   | `{ "hover": ".menu" }`                                                                                   | `await page.locator('.menu').hover()`                                                                 |
+| `press`                   | `{ "press": "Enter", "loc": "#q" }`                                                                      | `await page.locator('#q').press('Enter')` or `await page.keyboard.press('Enter')`                    |
+| `check` / `uncheck`       | `{ "check": "#agree" }`                                                                                  | `await page.locator('#agree').check()` / `.uncheck()`                                                |
+| `select`                  | `{ "select": { "label": "Brazil" }, "loc": "#country" }`                                                 | `await page.locator('#country').selectOption({ label: 'Brazil' })`                                   |
+| `upload`                  | `{ "upload": "fixtures/a.png", "loc": "input[type=file]" }`                                              | `await page.locator('input[type=file]').setInputFiles('fixtures/a.png')`                             |
+| `exist`                   | `{ "exist": "#close-popup", "click": "#close-popup" }`                                                   | Soft check then run remaining keys if element exists                                                  |
+| `getText`                 | `{ "getText": "h1" }`                                                                                    | `const text = await page.locator('h1').textContent()`                                                |
+| `expectText`              | `{ "expectText": { "contains": "Welcome" } }`                                                            | `await expect(page.locator('body')).toContainText('Welcome')`                                        |
+| `expectVisible`           | `{ "expectVisible": "#toast" }`                                                                          | `await expect(page.locator('#toast')).toBeVisible()`                                                 |
+| `expectUrl`               | `{ "expectUrl": { "contains": "/home" } }`                                                               | `await expect(page).toHaveURL(/\\/home/)`                                                            |
+| `waitRequest`             | `{ "waitRequest": { "url": "/api/save", "status": 200 } }`                                               | `await handleWaitRequest(page, { url:'/api/save', status:200 })`                                     |
+| `wait`                    | `{ "wait": 800 }`                                                                                        | `await page.waitForTimeout(800)`                                                                     |
+| `screenshot`              | `{ "screenshot": { "path": "shots/home.png", "fullPage": true } }`                                       | `await page.screenshot({ path:'shots/home.png', fullPage:true })`                                    |
+| `forEach`                 | `{ "forEach": { "items": "<selector>", "actions": [ ... ] } }`                                           | Iterate matched elements and run nested actions in each element's scope                              |
+| `scrollTo`                | `"top"|"bottom" \| { "to": "<selector|text>" } \| { "x": 0, "y": 800, "behavior"?: "auto"|"smooth" }`    | `window.scrollTo(...)` / `locator.scrollIntoViewIfNeeded()`                                          |
+| `expectValue`             | `{ "expectValue": { "loc": "<selector>", "equals"?: "...", "contains"?: "...", "timeout"?: 3000 } }`     | `await expect(locator).toHaveValue(...)` or `expect(await locator.inputValue()).toContain(...)`      |
+| `route`                   | `{ "route": { "url"?: "<glob>", "mock"?: {...}, "block"?: "<glob>"\|"[...]", "unroute"?: "<glob>" } }`  | `page.route('**/api', handler)` / `route.fulfill(...)` / `route.abort()` / `page.unroute(...)`       |
+
+---
+
+### Examples in context (new actions)
+
+#### 1) `forEach` — iterate cards and act inside each item scope
+```jsonc
+{
+  "describe": {
+    "text": "forEach demo",
+    "each-product": {
+      "title": "Open and close details for each product card",
+      "url": "/products",
+      "actions": [
+        { "forEach": { "items": ".product-card", "actions": [
+          { "click": "button:has-text('Details')" }, // await page.locator("button:has-text('Details')").click()
+          { "expectVisible": "h1 > text" },          // await expect(page.locator("h1", { hasText: "text" })).toBeVisible()
+          { "click": "button:has-text('Close')" }    // await page.locator("button:has-text('Close')").click()
+        ] } }
+      ]
+    }
+  }
+}
+```
+
+#### 2) `scrollTo` — bottom, to a target, and by coordinates
+```jsonc
+{
+  "describe": {
+    "text": "scrollTo bottom",
+    "footer-visible": {
+      "title": "Footer after scroll",
+      "url": "/long-page",
+      "actions": [
+        { "scrollTo": "bottom" },                    // await page.evaluate(() => window.scrollTo({ top: document.body.scrollHeight, behavior: "auto" }))
+        { "expectVisible": "footer.site-footer" }    // await expect(page.locator("footer.site-footer")).toBeVisible()
+      ]
+    }
+  }
+}
+```
+
+```jsonc
+{
+  "describe": {
+    "text": "scrollTo target",
+    "section-into-view": {
+      "title": "Jump to Installation section",
+      "url": "/docs",
+      "actions": [
+        { "scrollTo": { "to": "h2:has-text('Installation')" } }, // await page.locator("h2:has-text('Installation')").scrollIntoViewIfNeeded()
+        { "expectVisible": "p:has-text('npm install')" }         // await expect(page.locator("p:has-text('npm install')")).toBeVisible()
+      ]
+    }
+  }
+}
+```
+
+```jsonc
+{
+  "describe": {
+    "text": "scrollTo coordinates",
+    "by-xy": {
+      "title": "Scroll by coordinates",
+      "url": "/canvas-playground",
+      "actions": [
+        { "scrollTo": { "x": 0, "y": 800 } },        // await page.evaluate(() => window.scrollTo({ top: 800, left: 0, behavior: "auto" }))
+        { "expectVisible": "div.widget:has-text('Reached')" } // await expect(page.locator("div.widget:has-text('Reached')")).toBeVisible()
+      ]
+    }
+  }
+}
+```
+
+#### 3) `expectValue` — assert input/textarea value
+```jsonc
+{
+  "describe": {
+    "text": "expectValue equals",
+    "profile-email": {
+      "title": "Exact email value",
+      "url": "/profile",
+      "actions": [
+        { "click": "input[name='email']" },          // await page.locator("input[name='email']").click()
+        { "type": "jam@example.com" , "loc": "input[name='email']" }, // await page.locator("input[name='email']").fill("jam@example.com")
+        { "expectValue": { "loc": "input[name='email']", "equals": "jam@example.com" } } // await expect(page.locator("input[name='email']")).toHaveValue("jam@example.com")
+      ]
+    }
+  }
+}
+```
+
+```jsonc
+{
+  "describe": {
+    "text": "expectValue contains",
+    "search-query": {
+      "title": "Query contains substring",
+      "url": "/search",
+      "actions": [
+        { "click": "input[name='q']" },              // await page.locator("input[name='q']").click()
+        { "type": "Playwright runner json", "loc": "input[name='q']" }, // await page.locator("input[name='q']").fill("Playwright runner json")
+        { "expectValue": { "loc": "input[name='q']", "contains": "runner" } } // expect(await page.locator("input[name='q']").inputValue()).toContain("runner")
+      ]
+    }
+  }
+}
+```
+
+#### 4) `route` — mock, block and unroute
+```jsonc
+{
+  "describe": {
+    "text": "route mock",
+    "mock-users": {
+      "title": "Mock users endpoint",
+      "url": "/users",
+      "actions": [
+        { "route": { "url": "**/api/users", "mock": { "status": 200, "json": [{ "id": 1, "name": "Neo" }] } } }, // await page.route("**/api/users", r => r.fulfill({ status: 200, headers: { "content-type": "application/json" }, body: JSON.stringify([{ id: 1, name: "Neo" }]) }))
+        { "click": "button:has-text('Load Users')" }, // await page.locator("button:has-text('Load Users')").click()
+        { "expectVisible": "li:has-text('Neo')" }     // await expect(page.locator("li:has-text('Neo')")).toBeVisible()
+      ]
+    }
+  }
+}
+```
+
+```jsonc
+{
+  "describe": {
+    "text": "route block",
+    "block-assets": {
+      "title": "Block analytics and PNG",
+      "url": "/home",
+      "actions": [
+        { "route": { "block": ["**/analytics/**", "**/*.png"] } }, // await page.route("**/analytics/**", r => r.abort()); await page.route("**/*.png", r => r.abort())
+        { "wait": 300 },                                           // await page.waitForTimeout(300)
+        { "expectVisible": "h1:has-text('Home')" }                 // await expect(page.locator("h1:has-text('Home')")).toBeVisible()
+      ]
+    }
+  }
+}
+```
+
+```jsonc
+{
+  "describe": {
+    "text": "route unroute",
+    "remove-mock": {
+      "title": "Unroute previous mock",
+      "url": "/users",
+      "actions": [
+        { "route": { "unroute": "**/api/users" } },  // await page.unroute("**/api/users")
+        { "click": "button:has-text('Reload')" },    // await page.locator("button:has-text('Reload')").click()
+        { "waitRequest": { "url": "**/api/users", "method": "GET" } } // await handleWaitRequest(page, { url: "**/api/users", method: "GET" })
+      ]
+    }
+  }
+}
+```
 
 ---
 
@@ -185,7 +342,6 @@ Per **action** (or via **`context`** at case-level, then overridden by actions):
 > Replace public URLs with your app when adopting. All examples use **your** describe shape.
 
 ### A. Minimal suite
-
 ```json
 {
   "describe": {
@@ -200,7 +356,6 @@ Per **action** (or via **`context`** at case-level, then overridden by actions):
 ```
 
 ### B. Two cases in one describe
-
 ```json
 {
   "describe": {
@@ -223,7 +378,6 @@ Per **action** (or via **`context`** at case-level, then overridden by actions):
 ```
 
 ### C. Wikipedia search
-
 ```json
 {
   "describe": {
@@ -243,7 +397,6 @@ Per **action** (or via **`context`** at case-level, then overridden by actions):
 ```
 
 ### D. MDN search + URL check
-
 ```json
 {
   "describe": {
@@ -262,7 +415,6 @@ Per **action** (or via **`context`** at case-level, then overridden by actions):
 ```
 
 ### E. Playwright.dev navigation
-
 ```json
 {
   "describe": {
@@ -281,7 +433,6 @@ Per **action** (or via **`context`** at case-level, then overridden by actions):
 ```
 
 ### F. npmjs search + expectVisible
-
 ```json
 {
   "describe": {
@@ -300,7 +451,6 @@ Per **action** (or via **`context`** at case-level, then overridden by actions):
 ```
 
 ### G. DuckDuckGo slow type + {type} click
-
 ```json
 {
   "describe": {
@@ -319,7 +469,6 @@ Per **action** (or via **`context`** at case-level, then overridden by actions):
 ```
 
 ### H. Example.com full-page screenshot
-
 ```json
 {
   "describe": {
@@ -336,7 +485,6 @@ Per **action** (or via **`context`** at case-level, then overridden by actions):
 ```
 
 ### I. W3Schools iframe input
-
 ```json
 {
   "describe": {
@@ -359,7 +507,6 @@ Per **action** (or via **`context`** at case-level, then overridden by actions):
 ```
 
 ### J. W3Schools select dropdown
-
 ```json
 {
   "describe": {
@@ -381,7 +528,6 @@ Per **action** (or via **`context`** at case-level, then overridden by actions):
 ```
 
 ### K. W3Schools file upload
-
 ```json
 {
   "describe": {
@@ -403,7 +549,6 @@ Per **action** (or via **`context`** at case-level, then overridden by actions):
 ```
 
 ### L. ToDoMVC check/uncheck
-
 ```json
 {
   "describe": {
@@ -425,7 +570,6 @@ Per **action** (or via **`context`** at case-level, then overridden by actions):
 ```
 
 ### M. Press keys (locator & page)
-
 ```json
 {
   "describe": {
@@ -440,7 +584,6 @@ Per **action** (or via **`context`** at case-level, then overridden by actions):
 ```
 
 ### N. `exist` gate (optional UI)
-
 ```json
 {
   "describe": {
@@ -458,7 +601,6 @@ Per **action** (or via **`context`** at case-level, then overridden by actions):
 ```
 
 ### O. `getText` + assert body
-
 ```json
 {
   "describe": {
@@ -476,7 +618,6 @@ Per **action** (or via **`context`** at case-level, then overridden by actions):
 ```
 
 ### P. waitRequest + wait
-
 ```json
 {
   "describe": {
@@ -495,7 +636,6 @@ Per **action** (or via **`context`** at case-level, then overridden by actions):
 ```
 
 ### Q. expectUrl equals/contains
-
 ```json
 {
   "describe": {
@@ -513,7 +653,6 @@ Per **action** (or via **`context`** at case-level, then overridden by actions):
 ```
 
 ### R. describe-level run + tokens
-
 ```json
 {
   "describe": {
@@ -534,7 +673,6 @@ Per **action** (or via **`context`** at case-level, then overridden by actions):
 ```
 
 ### S. Nested frames + parent climbs
-
 ```json
 {
   "describe": {
@@ -557,7 +695,6 @@ Per **action** (or via **`context`** at case-level, then overridden by actions):
 ```
 
 ### T. Complex table with nth & within
-
 ```json
 {
   "describe": {
@@ -571,97 +708,6 @@ Per **action** (or via **`context`** at case-level, then overridden by actions):
         { "type": "Row B", "loc": ".new-todo" },
         { "press": "Enter", "loc": ".new-todo" },
         { "within": ".todo-list", "nth": 1, "click": "label > Row B" }
-      ]
-    }
-  }
-}
-```
-
-### run
-
-```text
-Reminder: when an action has "run", the other fields of that action are ignored (the runner continues). That's why I separated the run into its own action and used {resultFunc} in the next action.
-```
-
-```json
-{
-  "describe": {
-    "text": "Auth Suite (describe-level run)",
-    "run": "randomEmail",
-    "signup": {
-      "title": "Sign up with describe token",
-      "url": "https://jamesonbatista.github.io/projectqatesterweb/",
-      "actions": [
-        { "click": "Login" },
-        { "loc": "#username", "type": "{resultFunc}" },
-        { "loc": "#password", "type": "faker.internet.password()" },
-        { "click": "[type='submit'] > Login" },
-        { "wait": 1500 }
-      ]
-    },
-    "login": {
-      "title": "Login reusing describe token",
-      "url": "https://jamesonbatista.github.io/projectqatesterweb/",
-      "actions": [
-        { "click": "Login" },
-        { "loc": "#username", "type": "{resultFunc}" },
-        { "loc": "#password", "type": "P@ssw0rd123" },
-        { "click": "[type='submit'] > Login" },
-        { "expectText": { "contains": "Welcome" } }
-      ]
-    }
-  }
-}
-```
-
-```json
-{
-  "describe": {
-    "text": "Auth Suite (case-level run)",
-    "register-user": {
-      "title": "Create user via case run",
-      "run": "buildUser",
-      "url": "https://jamesonbatista.github.io/projectqatesterweb/",
-      "actions": [
-        { "click": "Login" },
-        { "loc": "#username", "type": "{resultFunc.email}" },
-        { "loc": "#password", "type": "{resultFunc.password}" },
-        { "click": "[type='submit'] > Login" },
-        { "expectUrl": { "contains": "/dashboard" } },
-        {
-          "screenshot": {
-            "path": "shots/after-register-{resultFunc.email}.png",
-            "fullPage": true
-          }
-        }
-      ]
-    }
-  }
-}
-```
-
-```json
-{
-  "describe": {
-    "text": "Profile Suite (action-level run)",
-    "update-profile": {
-      "title": "Stamp profile with ISO time from run",
-      "url": "https://jamesonbatista.github.io/projectqatesterweb/",
-      "actions": [
-        { "click": "Login" },
-        { "loc": "#username", "type": "faker.internet.email()" },
-        { "loc": "#password", "type": "P@ssw0rd123" },
-        { "click": "[type='submit'] > Login" },
-
-        { "wait": 800 },
-        { "click": "Profile" },
-
-        { "run": "nowISO" },
-        { "loc": "#displayName", "type": "User {resultFunc}" },
-        { "click": "button > Save" },
-
-        { "expectText": { "contains": "{resultFunc}" } },
-        { "screenshot": { "path": "shots/profile-{resultFunc}.png" } }
       ]
     }
   }
@@ -699,17 +745,10 @@ npx playwright test
 
 - **Suite header**: `{ "describe": { "text": "Title", "run": "fn?" , "<case>": { ... } } }`
 - **Case**: `{ "title", "url", "actions": [], "context"?: { frame/iframe/root/parent/index/within, nth/first/last } }`
-- **Target forms**: selector | `"tag > text"` | exact text
+- **Target forms**: selector \| `"tag > text"` \| exact text
 - **Indexing**: set on action or `context` (not both); `nth` vs `first/last`
 - **Typing**: `type` fast; `typeSlow` with key delays
 - **Tokens**: `{resultFunc}`, nested paths allowed
 - **Screenshots**: page or element, interpolate `path`
 
 ---
-
-## 💡 Tips
-
-- Put broad scoping rules in **`context`** at case-level; override in actions.
-- Use `exist` on optional UI (cookie banners, modals).
-- Organize suites by feature with clear **case keys**.
-- Keep `RunPluginFunctions` small & composable (data factories, clocks, IDs).
