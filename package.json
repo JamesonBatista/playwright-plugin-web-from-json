@@ -17,6 +17,7 @@
     "README.md"
   ],
   "scripts": {
+    "public": "git add . && git commit -am 'up'&& npm git push && npm version patch && npm publish",
     "prepare": "tsc -p tsconfig.json",
     "postinstall": "node dist/src/scripts/setup.js || true"
   },

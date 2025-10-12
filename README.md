@@ -1,608 +1,715 @@
-# 🎭 playwright-plugin-web-from-json
+<!-- Badges: START -->
+<p align="center">
+  <a href="https://github.com/jamesonbatista/playwright-plugin-web-from-json"><img alt="Repo" src="https://img.shields.io/badge/repo-playwright--plugin--web--from--json-111?logo=github&style=for-the-badge"></a>
+  <a href="https://www.npmjs.com/package/playwright-plugin-web-from-json"><img alt="npm version" src="https://img.shields.io/npm/v/playwright-plugin-web-from-json?style=for-the-badge&logo=npm&label=version&color=cb0000"></a>
+  <img alt="node-current" src="https://img.shields.io/node/v/playwright?style=for-the-badge&label=node">
+  <img alt="license" src="https://img.shields.io/badge/license-MIT-0bda51?style=for-the-badge">
+  <img alt="PRs welcome" src="https://img.shields.io/badge/PRs-welcome-14b8a6?style=for-the-badge&logo=github">
+</p>
+<!-- Badges: END -->
 
-[![Npm package weekly downloads](https://badgen.net/npm/dw/playwright-plugin-web-from-json)](https://npmjs.com/package/playwright-plugin-web-from-json)
+# ✨ Playwright Web-from-JSON
 
-[![Npm package weekly downloads](https://badgen.net/npm/dm/playwright-plugin-web-from-json)](https://npmjs.com/package/playwright-plugin-web-from-json)
-
-[![Npm package weekly downloads](https://badgen.net/npm/dy/playwright-plugin-web-from-json)](https://npmjs.com/package/playwright-plugin-web-from-json)
-
-> Runner features this README assumes (as per your code):
->
-> - One **suite per JSON file** (scanned from a directory), `describe.serial(...)` per file.
-> - One **`context/page` per suite** (`beforeAll/afterAll`).
-> - Case-level `url` handling: omit (stay), empty string (open `baseURL`), relative (resolve vs `baseURL`), absolute (as-is).
-> - Action dispatcher supports: `root`, `parent`, `getText`, `type`, `typeSlow`, `click` (incl. `{type}`), `hover`, `press`, `check`, `uncheck`,
->   `select`, `upload`, `expectText`, `expectVisible`, `expectUrl`, `waitRequest` (Playwright-native), `wait`, `screenshot`.
-> - Disambiguation/scope: `nth`, `first`, `last`, `within`, `frame` (array allowed for nested iframes).
-> - `before` chaining accepted on `describe` (string or list).
+> **Author tests in JSON.** This doc matches your runner's exact grammar and the behavior in `runner-executor.ts` you shared.
 
 ---
 
-## Installation
+## 🧭 Quick Menu
+
+- [⚙️ Install](#%EF%B8%8F-install)
+- [🧱 JSON Shape (correct!)](#-json-shape-correct)
+- [🧩 Concepts](#-concepts)
+  - [🔌 `run` at describe-level & action-level](#-run-at-describe-level--action-level)
+  - [🌍 `url` handling](#-url-handling)
+  - [🧭 Scoping: frame/root/parent/index/within](#-scoping-framerootparentindexwithin)
+  - [🎯 Targeting rules](#-targeting-rules)
+  - [🔢 Indexing (nth/first/last)](#-indexing-nthfirstlast)
+  - [🧠 Tokens & dynamic strings](#-tokens--dynamic-strings)
+- [🛠️ Actions Reference → Playwright](#%EF%B8%8F-actions-reference--playwright)
+- [📚 20+ Realistic JSON Examples (correct structure)](#-20-realistic-json-examples-correct-structure)
+  - [A. Minimal suite](#a-minimal-suite)
+  - [B. Two cases in one describe](#b-two-cases-in-one-describe)
+  - [C. Wikipedia search](#c-wikipedia-search)
+  - [D. MDN search + URL check](#d-mdn-search--url-check)
+  - [E. Playwright.dev navigation](#e-playwrightdev-navigation)
+  - [F. npmjs search + expectVisible](#f-npmjs-search--expectvisible)
+  - [G. DuckDuckGo slow type + {type} click](#g-duckduckgo-slow-type--type-click)
+  - [H. Example.com full-page screenshot](#h-examplecom-full-page-screenshot)
+  - [I. W3Schools iframe input](#i-w3schools-iframe-input)
+  - [J. W3Schools select dropdown](#j-w3schools-select-dropdown)
+  - [K. W3Schools file upload](#k-w3schools-file-upload)
+  - [L. ToDoMVC check/uncheck](#l-todomvc-checkuncheck)
+  - [M. Press keys (locator & page)](#m-press-keys-locator--page)
+  - [N. `exist` gate (optional UI)](#n-exist-gate-optional-ui)
+  - [O. `getText` + assert body](#o-gettext--assert-body)
+  - [P. waitRequest + wait](#p-waitrequest--wait)
+  - [Q. expectUrl equals/contains](#q-expecturl-equalscontains)
+  - [R. describe-level run + tokens](#r-describe-level-run--tokens)
+  - [S. Nested frames + parent climbs](#s-nested-frames--parent-climbs)
+  - [T. Complex table with nth & within](#t-complex-table-with-nth--within)
+- [🧪 Quick Start `.spec.ts`](#-quick-start-spects)
+- [🧾 Cheatsheet](#-cheatsheet)
+- [💡 Tips](#-tips)
+
+---
+
+## ⚙️ Install
 
 ```bash
-npm init playwright
-npm i playwright-plugin-web-from-json
-npx playwright install
+npx playwright init
+npm install playwright-plugin-web-from-json
 ```
 
-### Quick Start spec
+---
+
+## 🧱 JSON Shape (correct!)
+
+The **ONLY valid** top-level key is `describe`. Inside it:
+
+- `"text"`: suite title (string, required)
+- `"run"`: optional describe-level function (string Method name in `RunPluginFunctions`)
+- One or more **case keys** (you choose the key): objects with `title`, `url`, `actions`, and optional `context`.
+
+```jsonc
+{
+  "describe": {
+    "text": "Test in App",
+    "case-key": {
+      "title": "All Tests",
+      "url": "https://jamesonbatista.github.io/projectqatesterweb/",
+      "actions": [
+        { "click": "Login" },
+        { "loc": "#username", "type": "faker.internet.email()" },
+        { "loc": "#password", "type": "faker.internet.username()" },
+        { "click": "[type='submit'] > Login" },
+        { "wait": 3000 }
+      ]
+    }
+  }
+}
+```
+
+You can also have a **bare describe header** (no cases yet):
+
+```jsonc
+{
+  "describe": {
+    "text": "Test in App",
+    "run": "" // optional (or omit)
+  }
+}
+```
+
+> The runner converts each **case key** into a Playwright `test()`. If `title` is missing, it uses `Tests in feature <case-key>`.
+
+---
+
+## 🧩 Concepts
+
+### 🔌 `run` at describe-level & action-level
+
+- **Describe-level**: _Your json-loader may propagate this to each case before URL resolution._ (If you prefer case-local only, keep it at the case/action level.)
+- **Case-level**: runs before navigating (sets `vars.resultFunc`).
+- **Action-level**: short-circuits that action; it only runs the function and stores `vars.resultFunc`.
+
+`RunPluginFunctions` loader order (from your runner):
+
+1. `opts.functionsPath` (if provided) → 2) `help/plugin-func.ts` → 3) `help/plugin-func.js`
+
+Accepted exports: `export class RunPluginFunctions {}`, `export default { RunPluginFunctions }`, or `export default class RunPluginFunctions {}`.
+
+### 🌍 `url` handling
+
+- `""` → open `baseURL` (or `opts.baseURLOverride`)
+- `"https://..."` → absolute
+- `"relative"` → resolved against effective base
+
+Errors:
+
+- Relative URL without base → **throws**
+
+### 🧭 Scoping: frame/root/parent/index/within
+
+Per **action** (or via **`context`** at case-level, then overridden by actions):
+
+- `frame` / `iframe`: `string | string[]` → chain `frameLocator(sel)`
+- `root`: `string` → `locator(root)`
+- `parent`: selector **or** exact text → find anchor, **then climb**:
+- `index`: number of `".."` climbs (default 1)
+- `within`: narrowing selector at the end
+
+### 🎯 Targeting rules
+
+- **Selector** → `locator(selector)`
+- **`"tag > text"`** → `locator(tag, { hasText: text })`
+- **Exact text** → `getByText(text, { exact: true })`
+
+### 🔢 Indexing (nth/first/last)
+
+- Valid on **action** or in **`context`**. Action **overrides** case.
+- `nth` **cannot** be combined with `first`/`last`. Runner validates and throws.
+
+### 🧠 Tokens & dynamic strings
+
+- Interpolation runs on common string fields (e.g., `click`, `loc`, `expectText.equals`, etc.).
+- `type` / `typeSlow` also pass through your `resolveDynamic(...)` (e.g., `faker.internet.email()`).
+- Token examples: `{resultFunc}`, `{resultFunc.email}`, `{resultFunc.user.name}`.
+
+---
+
+## 🛠️ Actions Reference → Playwright
+
+| Action                     | JSON                                                               | Playwright reference                                                              |
+| -------------------------- | ------------------------------------------------------------------ | --------------------------------------------------------------------------------- |
+| `type`                     | `{ "loc": "#user", "type": "John" }`                               | `await page.locator('#user').fill('John')`                                        |
+| `typeSlow`                 | `{ "loc": "#msg", "typeSlow": "Hello" }`                           | `await loc.fill(''); await loc.pressSequentially('Hello', { delay: 300 })`        |
+| `click`                    | `{ "click": "button > Save" }`                                     | `await page.locator('button', { hasText: 'Save' }).click()`                       |
+| `click: "{type}"`          | `{ "click": "{type}" }`                                            | Click element showing last typed text                                             |
+| `click: "<prefix> {type}"` | `{ "click": "ul.results {type}" }`                                 | Click descendant with last typed text                                             |
+| `hover`                    | `{ "hover": ".menu" }`                                             | `await page.locator('.menu').hover()`                                             |
+| `press`                    | `{ "press": "Enter", "loc": "#q" }`                                | `await page.locator('#q').press('Enter')` or `await page.keyboard.press('Enter')` |
+| `check`/`uncheck`          | `{ "check": "#agree" }`                                            | `await page.locator('#agree').check()` / `.uncheck()`                             |
+| `select`                   | `{ "select": { "label": "Brazil" }, "loc": "#country" }`           | `await page.locator('#country').selectOption({ label: 'Brazil' })`                |
+| `upload`                   | `{ "upload": "fixtures/a.png", "loc": "input[type=file]" }`        | `await page.locator('input[type=file]').setInputFiles('fixtures/a.png')`          |
+| `expectText`               | `{ "expectText": { "contains": "Welcome" } }`                      | `await expect(page.locator('body')).toContainText('Welcome')`                     |
+| `expectVisible`            | `{ "expectVisible": "#toast" }`                                    | `await expect(page.locator('#toast')).toBeVisible()`                              |
+| `expectUrl`                | `{ "expectUrl": { "contains": "/home" } }`                         | `await expect(page).toHaveURL(/\/home/)`                                          |
+| `waitRequest`              | `{ "waitRequest": { "url": "/api/save", "status": 200 } }`         | `await handleWaitRequest(page, { url:'/api/save', status:200 })`                  |
+| `wait`                     | `{ "wait": 800 }`                                                  | `await page.waitForTimeout(800)`                                                  |
+| `screenshot`               | `{ "screenshot": { "path": "shots/home.png", "fullPage": true } }` | `await page.screenshot({ path:'shots/home.png', fullPage:true })`                 |
+
+---
+
+## 📚 20+ Realistic JSON Examples (correct structure)
+
+> Replace public URLs with your app when adopting. All examples use **your** describe shape.
+
+### A. Minimal suite
+
+```json
+{
+  "describe": {
+    "text": "Smoke — Example.com",
+    "home": {
+      "title": "Open Example",
+      "url": "https://example.com",
+      "actions": [{ "expectVisible": "h1" }]
+    }
+  }
+}
+```
+
+### B. Two cases in one describe
+
+```json
+{
+  "describe": {
+    "text": "Example navigation",
+    "home": {
+      "title": "Home is visible",
+      "url": "https://example.com",
+      "actions": [{ "expectVisible": "h1" }]
+    },
+    "go-details": {
+      "title": "Go to details",
+      "url": "https://example.com",
+      "actions": [
+        { "click": "a > More information" },
+        { "expectUrl": { "contains": "iana.org" } }
+      ]
+    }
+  }
+}
+```
+
+### C. Wikipedia search
+
+```json
+{
+  "describe": {
+    "text": "Wikipedia",
+    "search-playwright": {
+      "title": "Search Playwright",
+      "url": "https://en.wikipedia.org/wiki/Main_Page",
+      "actions": [
+        { "type": "Playwright", "loc": "#searchInput" },
+        { "press": "Enter", "loc": "#searchInput" },
+        { "expectVisible": "#firstHeading" },
+        { "expectText": { "contains": "Playwright" } }
+      ]
+    }
+  }
+}
+```
+
+### D. MDN search + URL check
+
+```json
+{
+  "describe": {
+    "text": "MDN",
+    "search-fetch": {
+      "title": "Search fetch",
+      "url": "https://developer.mozilla.org",
+      "actions": [
+        { "type": "fetch", "loc": "input[type='search']" },
+        { "press": "Enter", "loc": "input[type='search']" },
+        { "expectUrl": { "contains": "/search?q=fetch" } }
+      ]
+    }
+  }
+}
+```
+
+### E. Playwright.dev navigation
+
+```json
+{
+  "describe": {
+    "text": "Playwright Docs",
+    "assertions-section": {
+      "title": "Open Assertions",
+      "url": "https://playwright.dev",
+      "actions": [
+        { "click": "Docs" },
+        { "click": "Assertions" },
+        { "expectText": { "contains": "Expect" } }
+      ]
+    }
+  }
+}
+```
+
+### F. npmjs search + expectVisible
+
+```json
+{
+  "describe": {
+    "text": "npmjs",
+    "search-lodash": {
+      "title": "Find lodash",
+      "url": "https://www.npmjs.com/",
+      "actions": [
+        { "type": "lodash", "loc": "input[type='search']" },
+        { "press": "Enter", "loc": "input[type='search']" },
+        { "expectVisible": "a > lodash" }
+      ]
+    }
+  }
+}
+```
+
+### G. DuckDuckGo slow type + {type} click
+
+```json
+{
+  "describe": {
+    "text": "DuckDuckGo",
+    "slow-type-then-pick": {
+      "title": "Slow type and click by typed text",
+      "url": "https://duckduckgo.com",
+      "actions": [
+        { "typeSlow": "Playwright testing", "loc": "input[name='q']" },
+        { "press": "Enter", "loc": "input[name='q']" },
+        { "click": "{type}" }
+      ]
+    }
+  }
+}
+```
+
+### H. Example.com full-page screenshot
+
+```json
+{
+  "describe": {
+    "text": "Screenshots",
+    "example-shot": {
+      "title": "Full page",
+      "url": "https://example.com",
+      "actions": [
+        { "screenshot": { "path": "shots/example-home.png", "fullPage": true } }
+      ]
+    }
+  }
+}
+```
+
+### I. W3Schools iframe input
+
+```json
+{
+  "describe": {
+    "text": "W3Schools Iframe",
+    "input-in-iframe": {
+      "title": "Type inside iframe",
+      "url": "https://www.w3schools.com/html/tryit.asp?filename=tryhtml_input_text",
+      "actions": [
+        {
+          "iframe": "#iframeResult",
+          "root": "body",
+          "type": "Neo",
+          "loc": "input[type='text']"
+        },
+        { "iframe": "#iframeResult", "click": "input[type='submit']" }
+      ]
+    }
+  }
+}
+```
+
+### J. W3Schools select dropdown
+
+```json
+{
+  "describe": {
+    "text": "W3Schools Select",
+    "select-demo": {
+      "title": "Pick Saab",
+      "url": "https://www.w3schools.com/tags/tryit.asp?filename=tryhtml_select",
+      "actions": [
+        {
+          "iframe": "#iframeResult",
+          "select": { "label": "Saab" },
+          "loc": "select"
+        },
+        { "iframe": "#iframeResult", "expectText": { "contains": "Saab" } }
+      ]
+    }
+  }
+}
+```
+
+### K. W3Schools file upload
+
+```json
+{
+  "describe": {
+    "text": "W3Schools Upload",
+    "upload-demo": {
+      "title": "Upload a file",
+      "url": "https://www.w3schools.com/tags/tryit.asp?filename=tryhtml5_input_type_file",
+      "actions": [
+        {
+          "iframe": "#iframeResult",
+          "upload": "fixtures/avatar.png",
+          "loc": "input[type='file']"
+        },
+        { "iframe": "#iframeResult", "expectVisible": "input[type='file']" }
+      ]
+    }
+  }
+}
+```
+
+### L. ToDoMVC check/uncheck
+
+```json
+{
+  "describe": {
+    "text": "ToDoMVC",
+    "toggle-item": {
+      "title": "Check and uncheck",
+      "url": "https://demo.playwright.dev/todomvc/#/",
+      "actions": [
+        { "type": "Buy milk", "loc": ".new-todo" },
+        { "press": "Enter", "loc": ".new-todo" },
+        { "type": "Read docs", "loc": ".new-todo" },
+        { "press": "Enter", "loc": ".new-todo" },
+        { "check": ".todo-list li:nth-child(1) .toggle" },
+        { "uncheck": ".todo-list li:nth-child(1) .toggle" }
+      ]
+    }
+  }
+}
+```
+
+### M. Press keys (locator & page)
+
+```json
+{
+  "describe": {
+    "text": "Keyboard",
+    "press-keys": {
+      "title": "ESC and Enter",
+      "url": "https://example.com",
+      "actions": [{ "press": "Escape" }, { "press": "Enter", "loc": "body" }]
+    }
+  }
+}
+```
+
+### N. `exist` gate (optional UI)
+
+```json
+{
+  "describe": {
+    "text": "Optional Popup",
+    "skip-popup": {
+      "title": "Close popup if present",
+      "url": "https://example.com",
+      "actions": [
+        { "exist": "#close-popup", "click": "#close-popup" },
+        { "click": "button > Continue" }
+      ]
+    }
+  }
+}
+```
+
+### O. `getText` + assert body
+
+```json
+{
+  "describe": {
+    "text": "GetText",
+    "capture-header": {
+      "title": "Grab and assert",
+      "url": "https://example.com",
+      "actions": [
+        { "getText": "h1" },
+        { "expectText": { "contains": "Example" } }
+      ]
+    }
+  }
+}
+```
+
+### P. waitRequest + wait
+
+```json
+{
+  "describe": {
+    "text": "API waits",
+    "save-flow": {
+      "title": "Save and wait API",
+      "url": "https://example.com/form",
+      "actions": [
+        { "click": "button > Save" },
+        { "waitRequest": { "url": "/api/save", "status": 200 } },
+        { "wait": 800 }
+      ]
+    }
+  }
+}
+```
+
+### Q. expectUrl equals/contains
+
+```json
+{
+  "describe": {
+    "text": "URL Checks",
+    "redirects": {
+      "title": "Goes to IANA",
+      "url": "https://example.com",
+      "actions": [
+        { "click": "a > More information" },
+        { "expectUrl": { "contains": "iana.org" } }
+      ]
+    }
+  }
+}
+```
+
+### R. describe-level run + tokens
+
+```json
+{
+  "describe": {
+    "text": "Signup with dynamic email",
+    "run": "randomEmail",
+    "signup": {
+      "title": "Fill from token",
+      "url": "https://jamesonbatista.github.io/projectqatesterweb/",
+      "actions": [
+        { "click": "Login" },
+        { "loc": "#username", "type": "{resultFunc}" },
+        { "loc": "#password", "type": "P@ssw0rd123" },
+        { "click": "[type='submit'] > Login" }
+      ]
+    }
+  }
+}
+```
+
+### S. Nested frames + parent climbs
+
+```json
+{
+  "describe": {
+    "text": "Nested frame actions",
+    "inside-iframe": {
+      "title": "Click by parent anchor",
+      "url": "https://www.w3schools.com/tags/tryit.asp?filename=tryhtml_iframe",
+      "actions": [
+        {
+          "iframe": "#iframeResult",
+          "parent": "W3Schools",
+          "index": 2,
+          "within": "body",
+          "click": "a > Learn HTML"
+        }
+      ]
+    }
+  }
+}
+```
+
+### T. Complex table with nth & within
+
+```json
+{
+  "describe": {
+    "text": "Table Ops",
+    "edit-second-row": {
+      "title": "Edit row by index",
+      "url": "https://demo.playwright.dev/todomvc/#/",
+      "actions": [
+        { "type": "Row A", "loc": ".new-todo" },
+        { "press": "Enter", "loc": ".new-todo" },
+        { "type": "Row B", "loc": ".new-todo" },
+        { "press": "Enter", "loc": ".new-todo" },
+        { "within": ".todo-list", "nth": 1, "click": "label > Row B" }
+      ]
+    }
+  }
+}
+```
+
+### run
+
+```text
+Reminder: when an action has "run", the other fields of that action are ignored (the runner continues). That's why I separated the run into its own action and used {resultFunc} in the next action.
+```
+
+```json
+{
+  "describe": {
+    "text": "Auth Suite (describe-level run)",
+    "run": "randomEmail",
+    "signup": {
+      "title": "Sign up with describe token",
+      "url": "https://jamesonbatista.github.io/projectqatesterweb/",
+      "actions": [
+        { "click": "Login" },
+        { "loc": "#username", "type": "{resultFunc}" },
+        { "loc": "#password", "type": "faker.internet.password()" },
+        { "click": "[type='submit'] > Login" },
+        { "wait": 1500 }
+      ]
+    },
+    "login": {
+      "title": "Login reusing describe token",
+      "url": "https://jamesonbatista.github.io/projectqatesterweb/",
+      "actions": [
+        { "click": "Login" },
+        { "loc": "#username", "type": "{resultFunc}" },
+        { "loc": "#password", "type": "P@ssw0rd123" },
+        { "click": "[type='submit'] > Login" },
+        { "expectText": { "contains": "Welcome" } }
+      ]
+    }
+  }
+}
+```
+
+```json
+{
+  "describe": {
+    "text": "Auth Suite (case-level run)",
+    "register-user": {
+      "title": "Create user via case run",
+      "run": "buildUser",
+      "url": "https://jamesonbatista.github.io/projectqatesterweb/",
+      "actions": [
+        { "click": "Login" },
+        { "loc": "#username", "type": "{resultFunc.email}" },
+        { "loc": "#password", "type": "{resultFunc.password}" },
+        { "click": "[type='submit'] > Login" },
+        { "expectUrl": { "contains": "/dashboard" } },
+        {
+          "screenshot": {
+            "path": "shots/after-register-{resultFunc.email}.png",
+            "fullPage": true
+          }
+        }
+      ]
+    }
+  }
+}
+```
+
+```json
+{
+  "describe": {
+    "text": "Profile Suite (action-level run)",
+    "update-profile": {
+      "title": "Stamp profile with ISO time from run",
+      "url": "https://jamesonbatista.github.io/projectqatesterweb/",
+      "actions": [
+        { "click": "Login" },
+        { "loc": "#username", "type": "faker.internet.email()" },
+        { "loc": "#password", "type": "P@ssw0rd123" },
+        { "click": "[type='submit'] > Login" },
+
+        { "wait": 800 },
+        { "click": "Profile" },
+
+        { "run": "nowISO" },
+        { "loc": "#displayName", "type": "User {resultFunc}" },
+        { "click": "button > Save" },
+
+        { "expectText": { "contains": "{resultFunc}" } },
+        { "screenshot": { "path": "shots/profile-{resultFunc}.png" } }
+      ]
+    }
+  }
+}
+```
+
+---
+
+## 🧪 Quick Start `.spec.ts`
 
 ```ts
+// tests/json-plugin.spec.ts
 import { test } from "@playwright/test";
 import { generateTestsFromJson } from "playwright-plugin-web-from-json";
 import path from "path";
 
-generateTestsFromJson({ dir: path.resolve(process.cwd(), "Fixtures") }, test);
+generateTestsFromJson(
+  {
+    dir: path.resolve(process.cwd(), "Fixtures"),
+    // baseURLOverride: "https://your-app.example"
+  },
+  test
+);
+```
+
+Run:
+
+```bash
+npx playwright test
 ```
 
 ---
 
-## JSON file anatomy
+## 🧾 Cheatsheet
 
-```jsonc
-{
-  "describe": {
-    "text": "Suite name (optional)",
-    "before": ["./00-login.json", "./01-seed.json"], // optional: prepend cases from other JSONs
-    "case-key": {
-      "title": "Case title (optional)",
-      "url": "/relative-or-https://absolute (optional)",
-      "context": {
-        "nth": 0,
-        "first": false,
-        "last": false,
-        "within": ".container",
-        "frame": ["#outer-frame", "#inner-frame"]
-      },
-      "actions": [
-        /* see below */
-      ]
-    }
-  }
-}
-```
-
-**Targeting rules**:
-
-- `"tag > text"` → `locator(tag, { hasText: text })`
-- CSS selector string → `locator(selector)`
-- Otherwise plain text → `getByText(text, { exact: true })`
-- Index defaults to `.first()` unless `nth/first/last` is provided.
+- **Suite header**: `{ "describe": { "text": "Title", "run": "fn?" , "<case>": { ... } } }`
+- **Case**: `{ "title", "url", "actions": [], "context"?: { frame/iframe/root/parent/index/within, nth/first/last } }`
+- **Target forms**: selector | `"tag > text"` | exact text
+- **Indexing**: set on action or `context` (not both); `nth` vs `first/last`
+- **Typing**: `type` fast; `typeSlow` with key delays
+- **Tokens**: `{resultFunc}`, nested paths allowed
+- **Screenshots**: page or element, interpolate `path`
 
 ---
 
-# 1) Mini cookbook — single-action examples (with Playwright refs)
-
-### Clicks
-
-```jsonc
-{ "click": "#save" }
-// ref await page.locator('#save').first().click()
-
-{ "click": "Login" }
-// ref await page.getByText('Login', { exact: true }).first().click()
-
-{ "click": "a > Writing tests" }
-// ref await page.locator('a', { hasText: 'Writing tests' }).first().click()
-```
-
-### Typing
-
-```jsonc
-{ "loc": "#email", "type": "faker.internet.email()" }
-// ref await page.locator('#email').fill(faker.internet.email())
-
-{ "loc": "#name", "typeSlow": "John Doe" }
-// ref await page.locator('#name').fill(''); await page.locator('#name').pressSequentially('John Doe', { delay: 300 })
-```
-
-### Expect text
-
-```jsonc
-{ "expectText": { "equals": "Welcome!" }, "loc": "h1" }
-// ref await expect(page.locator('h1')).toHaveText('Welcome!')
-
-{ "expectText": { "contains": "orders" } }
-// ref await expect(page.locator('body')).toContainText('orders')
-```
-
-### Expect visible
-
-```jsonc
-{ "expectVisible": "#toast" }
-// ref await expect(page.locator('#toast')).toBeVisible()
-
-{ "expectVisible": { "timeout": 5000 }, "loc": ".ok" }
-// ref await expect(page.locator('.ok')).toBeVisible({ timeout: 5000 })
-```
-
-### URL
-
-```jsonc
-{ "expectUrl": { "equals": "https://app.example.com" } }
-// ref await expect(page).toHaveURL('https://app.example.com')
-
-{ "expectUrl": { "contains": "#/dashboard" } }
-// ref await expect(page).toHaveURL(/#\/dashboard/)
-```
-
-### Network wait
-
-```jsonc
-{ "waitRequest": { "urlIncludes": "/posts", "status": 200, "timeout": 30000 } }
-// ref await page.waitForResponse(r => r.url().includes('/posts') && r.status() === 200, { timeout: 30000 })
-```
-
----
-
-# 2) MANY complete JSON files you can copy–paste
-
-Below are **20 full JSON suites** (each you can save to `Fixtures/*.json`).  
-They cover navigation, text/selector clicks, scoping, frames, forms, network, screenshots, and chaining.
-
----
-
-## EX-01 — Basic navigation & URL
-
-```jsonc
-{
-  "describe": {
-    "text": "Basic navigation & URL",
-    "open": {
-      "title": "Open baseURL",
-      "url": "",
-      "actions": [{ "expectVisible": "h2 > Navigation & URL" }]
-    },
-    "hash-route": {
-      "title": "Hash routing to #/dashboard",
-      "actions": [
-        { "click": "#go-dashboard" },
-        { "expectUrl": { "contains": "#/dashboard" } }
-      ]
-    }
-  }
-}
-```
-
----
-
-## EX-02 — Click by text, then assert text
-
-```jsonc
-{
-  "describe": {
-    "text": "Clicks & Text",
-    "case": {
-      "url": "",
-      "actions": [
-        { "click": "Click by exact text" },
-        { "expectText": { "equals": "Clicked by text" }, "loc": "#text-result" }
-      ]
-    }
-  }
-}
-```
-
----
-
-## EX-03 — Slow & fast typing, summary panel becomes visible
-
-```jsonc
-{
-  "describe": {
-    "text": "Typing demo",
-    "fill": {
-      "url": "",
-      "actions": [
-        { "loc": "#email", "type": "faker.internet.email()" },
-        { "loc": "#name", "type": "faker.person.fullName()" },
-        { "loc": "#pass", "typeSlow": "SuperSecret123" },
-        { "click": "#btn-show-typed" },
-        { "expectVisible": "#typed-output" },
-        { "expectText": { "contains": "email=" }, "loc": "#typed-output" }
-      ]
-    }
-  }
-}
-```
-
----
-
-## EX-04 — Press key on field and assert output
-
-```jsonc
-{
-  "describe": {
-    "text": "Press keys",
-    "enter": {
-      "url": "",
-      "actions": [
-        { "loc": "#press-input", "type": "Hello world" },
-        { "press": "Enter", "loc": "#press-input" },
-        { "expectText": { "equals": "Enter pressed!" }, "loc": "#press-output" }
-      ]
-    }
-  }
-}
-```
-
----
-
-## EX-05 — Check, radio, select, read values
-
-```jsonc
-{
-  "describe": {
-    "text": "Forms",
-    "form": {
-      "url": "",
-      "actions": [
-        { "check": "#ck-terms" },
-        { "check": "input[name='plan'][value='pro']" },
-        { "select": { "label": "Brazil" }, "loc": "#country" },
-        { "click": "#check-read" },
-        { "expectText": { "contains": "terms=true" }, "loc": "#check-output" },
-        { "expectText": { "contains": "plan=pro" }, "loc": "#check-output" }
-      ]
-    }
-  }
-}
-```
-
----
-
-## EX-06 — Flash message visible & then closed
-
-```jsonc
-{
-  "describe": {
-    "text": "Flash",
-    "flash": {
-      "url": "",
-      "actions": [
-        { "expectVisible": "#flash" },
-        {
-          "expectText": { "contains": "Your username is invalid!" },
-          "loc": "#flash"
-        },
-        { "click": "#close-flash" }
-      ]
-    }
-  }
-}
-```
-
----
-
-## EX-07 — Multiple matches: nth inside scope
-
-```jsonc
-{
-  "describe": {
-    "text": "Disambiguation: nth",
-    "nth": {
-      "url": "",
-      "actions": [
-        { "click": ".item", "within": "#repeat-scope", "nth": 1 },
-        {
-          "expectText": { "equals": "Clicked: Row #2" },
-          "loc": "#repeat-output"
-        }
-      ]
-    }
-  }
-}
-```
-
----
-
-## EX-08 — Multiple matches: first & last
-
-```jsonc
-{
-  "describe": {
-    "text": "Disambiguation: first & last",
-    "first-last": {
-      "url": "",
-      "actions": [
-        { "click": ".item", "within": "#repeat-scope", "first": true },
-        {
-          "expectText": { "equals": "Clicked: Row #1" },
-          "loc": "#repeat-output"
-        },
-        { "click": ".item", "within": "#repeat-scope", "last": true },
-        {
-          "expectText": { "equals": "Clicked: Row #3" },
-          "loc": "#repeat-output"
-        }
-      ]
-    }
-  }
-}
-```
-
----
-
-## EX-09 — Scoped click within container
-
-```jsonc
-{
-  "describe": {
-    "text": "Within scope",
-    "scoped": {
-      "url": "",
-      "actions": [
-        { "click": "Scoped Button B", "within": "#within-scope" },
-        {
-          "expectText": { "equals": "Within clicked: Scoped Button B" },
-          "loc": "#within-output"
-        }
-      ]
-    }
-  }
-}
-```
-
----
-
-## EX-10 — Iframe basic + expect visible inside frame
-
-```jsonc
-{
-  "describe": {
-    "text": "Iframe",
-    "frame": {
-      "url": "",
-      "actions": [
-        { "click": "#frame-btn", "frame": "#demo-frame" },
-        { "expectVisible": "#frame-toast", "frame": "#demo-frame" }
-      ]
-    }
-  }
-}
-```
-
----
-
-## EX-11 — Network waitRequest (200) then text appears
-
-```jsonc
-{
-  "describe": {
-    "text": "Network",
-    "posts": {
-      "url": "",
-      "actions": [
-        { "click": "#btn-fetch-posts" },
-        {
-          "waitRequest": {
-            "urlIncludes": "/posts",
-            "status": 200,
-            "timeout": 50000
-          }
-        },
-        { "expectText": { "contains": "status 200" }, "loc": "#net-output" }
-      ]
-    }
-  }
-}
-```
-
----
-
-## EX-12 — Network waitRequest with multiple URL fragments & status list
-
-```jsonc
-{
-  "describe": {
-    "text": "Network variants",
-    "user-or-summary": {
-      "url": "",
-      "actions": [
-        { "click": "#btn-fetch-user" },
-        {
-          "waitRequest": {
-            "urlIncludes": ["/users/1", "/users/"],
-            "status": [200, 204],
-            "timeout": 40000
-          }
-        },
-        { "expectText": { "contains": "status 200" }, "loc": "#net-output" }
-      ]
-    }
-  }
-}
-```
-
----
-
-## EX-13 — Screenshot full page and element
-
-```jsonc
-{
-  "describe": {
-    "text": "Screenshots",
-    "shots": {
-      "url": "",
-      "actions": [
-        { "screenshot": { "path": "screens/full.png", "fullPage": true } },
-        {
-          "screenshot": { "path": "screens/card.png" },
-          "loc": "#card-screenshot"
-        }
-      ]
-    }
-  }
-}
-```
-
----
-
-## EX-14 — Hover tooltip becomes visible
-
-```jsonc
-{
-  "describe": {
-    "text": "Hover",
-    "tip": {
-      "url": "",
-      "actions": [{ "hover": "Hover me" }, { "expectVisible": "#hover-tip" }]
-    }
-  }
-}
-```
-
----
-
-## EX-15 — Use `parent` to climb and click a child
-
-```jsonc
-{
-  "describe": {
-    "text": "Parent targeting",
-    "parent": {
-      "url": "",
-      "actions": [
-        {
-          "parent": "Clicks & Visibility",
-          "click": "button > Make toast visible"
-        },
-        { "expectVisible": "#selector-result" }
-      ]
-    }
-  }
-}
-```
-
----
-
-## EX-16 — Use `root` to scope a block
-
-```jsonc
-{
-  "describe": {
-    "text": "Root scoping",
-    "root-scope": {
-      "url": "",
-      "actions": [
-        {
-          "root": ".card:has(h2:has-text(\"Clicks & Visibility\"))",
-          "click": "#btn-selector"
-        },
-        { "expectVisible": "#selector-result" }
-      ]
-    }
-  }
-}
-```
-
----
-
-## EX-17 — `getText`, log and reuse mentally
-
-```jsonc
-{
-  "describe": {
-    "text": "getText",
-    "read": {
-      "url": "",
-      "actions": [
-        { "getText": "h2 > Typing & Keys" },
-        { "click": "#btn-show-typed" } // nothing uses the text programmatically, but it logs it
-      ]
-    }
-  }
-}
-```
-
----
-
-## EX-18 — Press without locator (page-level keyboard)
-
-```jsonc
-{
-  "describe": {
-    "text": "Global press",
-    "keyboard": {
-      "url": "",
-      "actions": [{ "press": "Control+A" }, { "wait": 200 }]
-    }
-  }
-}
-```
-
----
-
-## EX-19 — Select by different strategies
-
-```jsonc
-{
-  "describe": {
-    "text": "Select strategies",
-    "select": {
-      "url": "",
-      "actions": [
-        { "select": { "index": 1 }, "loc": "#country" },
-        { "select": { "label": "United States" }, "loc": "#country" },
-        { "select": { "value": "DE" }, "loc": "#country" }
-      ]
-    }
-  }
-}
-```
-
----
-
-## EX-20 — Upload one and multiple files
-
-```jsonc
-{
-  "describe": {
-    "text": "Uploads",
-    "upload": {
-      "url": "",
-      "actions": [
-        { "upload": "tests/fixtures/avatar.png", "loc": "input[type=file]" },
-        { "upload": ["tests/a.png", "tests/b.png"], "loc": "#file" }
-      ]
-    }
-  }
-}
-```
-
----
-
-# 3) Before chaining (reuse steps across suites)
-
-```jsonc
-{
-  "describe": {
-    "text": "Main flow reusing hooks",
-    "before": ["./00-login.json", "./01-select-tenant.json"],
-    "do-stuff": {
-      "title": "Open dashboard and check a tile",
-      "url": "/dashboard",
-      "actions": [
-        { "expectVisible": "h2 > Dashboard" },
-        { "click": "a > Settings" },
-        { "expectVisible": "h1 > Settings" }
-      ]
-    }
-  }
-}
-```
-
----
-
-## Troubleshooting tips
-
-- **Multiple matches** → use `within` + `nth/first/last`.
-- **Hidden element on click** → runner retries with `{ force: true }`, but you should consider `expectVisible` first.
-- **Relative URL without baseURL** → set `use.baseURL` in Playwright config or supply `baseURLOverride` in `generateTestsFromJson`.
-- **`waitRequest` never resolves** → check `urlIncludes` array and status code(s); verify CORS/HTTPS in your environment.
-- **Iframes** → for nested iframes use `frame: ["#outer", "#inner"]`.
-
----
-
-MIT
+## 💡 Tips
+
+- Put broad scoping rules in **`context`** at case-level; override in actions.
+- Use `exist` on optional UI (cookie banners, modals).
+- Organize suites by feature with clear **case keys**.
+- Keep `RunPluginFunctions` small & composable (data factories, clocks, IDs).

@@ -458,66 +458,163 @@ generateTestsFromJson(
   // secund json
   const exampleJsonPathSecond = path.join(
     fixturesDir,
-    "plugin-example-voe-gol.json"
+    "plugin-example-voe-latam.json"
   );
   const exampleJsonSecond = {
     describe: {
-      text: "Test in Voe Gol",
+      text: "Test in Voe Latam",
       "case-key": {
         title: "Buy ticket",
-        url: "https://www.voegol.com.br/nh/",
+        url: "https://www.latamairlines.com/br/pt",
         actions: [
+          { click: "Aceite todos os cookies" },
           {
-            loc: "#field_origem",
-            type: "São Paulo - Guarulhos - GRU",
+            root: "#login-incentive-popper",
+            parent: "Faça login na LATAM para obter diversos benefícios.",
+            click: "#button-close-login-incentive i",
+          },
+          {
+            loc: "[placeholder='Insira uma origem']",
+            type: "Recife, REC - Brasil",
             click: "{type}",
           },
           {
-            loc: "[id='field_destino']",
-            type: "Recife - REC",
-            click: "#destino-dropdown-target ul li {type}",
+            loc: "#fsb-destination--text-field",
+            type: "São Paulo, GRU - Brasil",
+            click: "{type}",
           },
-          { click: "#field_ida" },
+          { click: "#fsb-departure" },
+          { expectVisible: "#fsb-calendar-container-desktop" },
           {
-            loc: ".datepicker-picker .datepicker-main .days",
-            click: "15",
+            click: "#date-2025-10-20",
           },
+          {
+            click: "#date-2025-10-27",
+          },
+          { click: "#fsb-passengers--text-field" },
+          {
+            root: ".PassengersSelectionstyles__Container-sc-6im5y0-0",
+            click: "#fsb-adults-selector-container #fsb-adults-selector-add",
+          },
+          {
+            root: ".PassengersSelectionstyles__Container-sc-6im5y0-0",
+            click:
+              "#fsb-children-selector-container #fsb-children-selector-add",
+          },
+          { click: "Procurar voos" },
 
-          { click: "#field_volta" },
-          {
-            root: "#field_wrapper_volta",
-            loc: ".datepicker-picker .datepicker-main .days",
-            click: "20",
-          },
-          {
-            screenshot: {
-              path: "screens/gol.png",
-            },
-          },
-          { click: "[class='btn btn-primary']" },
-          {
-            waitRequest: {
-              urlIncludes: "gzip&ngsw-bypass=true",
-              status: 200,
-              timeout: 50000,
-            },
-          },
-          { expectVisible: "[novalidate='novalidate']", timeout: 30000 },
-          {
-            screenshot: {
-              path: "screens/gol-voe.png",
-            },
-          },
           { wait: 3000 },
         ],
       },
     },
   };
-
   writeFileIfNotExists(
     exampleJsonPathSecond,
     JSON.stringify(exampleJsonSecond, null, 2) + "\n"
   );
+
+  //
+  // secund json
+  const example3 = path.join(fixturesDir, "plugin-example-auto.json");
+  const exampleJson3 = {
+    describe: {
+      text: "Test in App",
+      "case-key": {
+        title: "All Tests",
+        url: "https://jamesonbatista.github.io/projectqatesterweb/",
+        actions: [
+          { click: "Login" },
+          { loc: "#username", type: "faker.internet.email()" },
+          { loc: "#password", type: "faker.internet.username()" },
+          { click: "[type='submit'] > Login" },
+          { wait: 3000 },
+        ],
+      },
+      "New register in app": {
+        title: "New Register in platform",
+        actions: [
+          { loc: "#name", type: "faker.internet.username()" },
+          { loc: "#email", type: "faker.internet.email()" },
+          { loc: "#password", type: "faker.internet.username()" },
+          { select: { value: ["Feminino"] }, loc: "#gender" },
+          {
+            parent: "Data de Nascimento:",
+            loc: "input",
+            type: "10/07/1988",
+          },
+          {
+            parent: "Telefone:",
+            loc: "input",
+            type: "91899999999",
+          },
+          {
+            parent: "Endereço:",
+            loc: "input",
+            type: "Street Call in form new",
+          },
+          { select: { value: "São Paulo" }, loc: "#state" },
+          {
+            parent: "Aceito os termos e condições",
+            click: "#terms",
+          },
+          { click: "Cadastrar" },
+          { wait: 3000 },
+          { loc: "#customAlert", click: "OK" },
+        ],
+      },
+      "Access Iframe": {
+        title: "Access Iframe ",
+        actions: [
+          { click: "Menu" },
+          { click: "nav ul li > Iframe Test" },
+          {
+            frame: ["[src='iframe1.html']", "[src='iframe2.html']"],
+            expectVisible: "Conteúdo do Iframe 2",
+          },
+          { wait: 3000 },
+        ],
+      },
+      "Register in Iframe": {
+        run: "userEmail",
+        title: "New Register in platform with Iframe",
+        actions: [
+          { click: "Menu" },
+          { click: "nav ul li > Cadastro Iframe" },
+          {
+            frame: ".cadastro-iframe",
+            root: "#cadastroForm",
+            loc: "#name",
+            typeSlow: "{resultFunc}",
+          },
+          {
+            frame: ".cadastro-iframe",
+            root: "#cadastroForm",
+            loc: "#email",
+            type: "faker.internet.email()",
+          },
+          { run: "hello" },
+          {
+            frame: ".cadastro-iframe",
+            root: "#cadastroForm",
+            loc: "#address",
+            typeSlow: "{resultFunc.greeting}",
+          },
+        ],
+      },
+      "create Task": {
+        title: "Create a new task",
+        actions: [
+          { click: "Menu" },
+          { click: "nav ul li > Tasks" },
+          { loc: "#taskTitle", type: "faker.internet.username()" },
+          { run: "randomUser" },
+          { loc: "#taskDescription", type: "{resultFunc.username}" },
+          { wait: 3000 },
+        ],
+      },
+    },
+  };
+  writeFileIfNotExists(example3, JSON.stringify(exampleJson3, null, 2) + "\n");
 
   console.log("🎯 Setup completed.");
 }
@@ -1156,4 +1253,35 @@ const specContent = `<!doctype html>
 `;
 writeFileIfNotExists(jsonSnippetsPath, specContent);
 
+// html
+const runFunc = path.resolve(projectRoot, "help");
+const nameRunfunc = path.join(runFunc, "plugin-func.ts");
+const cont = `
+export class RunPluginFunctions { // not modify name
+  // sync OK
+  hello() {
+    return { greeting: "hello", email: "qa@example.com" };
+  }
+
+  // async OK
+  async randomUser() {
+    return { username: "user_" + Math.random().toString(36).slice(2, 7) };
+  }
+
+  async delayedCode() {
+    await new Promise((r) => setTimeout(r, 1000));
+    return "CODE-" + Math.floor(Math.random() * 999);
+  }
+
+  randomCode() {
+    return Math.floor(Math.random() * 10000); // number
+  }
+
+  userEmail() {
+    return "user_" + Date.now() + "@example.com"; // string
+  }
+}
+
+`;
+writeFileIfNotExists(nameRunfunc, cont);
 main();
