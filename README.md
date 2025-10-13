@@ -10,6 +10,12 @@
 
 # ✨ Playwright Web-from-JSON
 
+
+```cmd
+npm init --y
+npm init playwright
+npm i playwright-plugin-web-from-json
+```
 ---
 
 ### Using `url`
@@ -447,7 +453,8 @@ For each action below you’ll see: **JSON shape**, **Playwright mapping**, and 
 - **Effect**: return value stored in `vars.resultFunc` (awaited if Promise)
 
 ```json
-{ "run": "genCPF" }
+{ "run": "genCPF", "as": "cpf" }
+// {type: "{cpf}"}
 ```
 
 ```json

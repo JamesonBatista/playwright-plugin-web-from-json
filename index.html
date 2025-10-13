@@ -308,6 +308,51 @@
 				grid-column: 1 / -1;
 			}
 		}
+
+		/* --- forEach Playground --- */
+		.fx-list {
+			display: grid;
+			grid-template-columns: repeat(3, 1fr);
+			gap: 12px;
+			margin-top: 12px;
+		}
+
+		.fx-card {
+			border: 1px solid var(--stroke);
+			border-radius: 12px;
+			padding: 12px;
+			background: rgba(255, 255, 255, 0.06);
+		}
+
+		.fx-row {
+			display: flex;
+			gap: 10px;
+			align-items: center;
+			flex-wrap: wrap;
+			margin-top: 8px;
+		}
+
+		.fx-row:first-child {
+			margin-top: 0;
+		}
+
+		.fx-card .mini {
+			padding: 6px 10px;
+			border-radius: 8px;
+			border: 1px solid var(--stroke);
+			background: rgba(255, 255, 255, 0.08);
+			color: var(--txt);
+		}
+
+		.fx-status {
+			margin-left: 6px;
+		}
+
+		@media (max-width: 900px) {
+			.fx-list {
+				grid-template-columns: 1fr;
+			}
+		}
 	</style>
 </head>
 
@@ -350,7 +395,8 @@
 			<div class="card">
 				<h2>Clicks & Visibility</h2>
 				<p class="hint">Tests applied: <strong>click</strong> by exact text and by selector;
-					<strong>expectVisible</strong>, <strong>expectText</strong>.</p>
+					<strong>expectVisible</strong>, <strong>expectText</strong>.
+				</p>
 				<div class="row">
 					<button class="btn" id="btn-selector">Make toast visible</button>
 					<div class="toast" id="selector-result">Toast placeholder</div>
@@ -409,7 +455,8 @@
 			<div class="card">
 				<h2>Text Assertions & Flash</h2>
 				<p class="hint">Tests applied: <strong>expectText</strong> com/sem <code>loc</code>,
-					<strong>expectVisible</strong> simples.</p>
+					<strong>expectVisible</strong> simples.
+				</p>
 				<div class="flash" id="flash">
 					Your username is invalid!
 					<a href="#" class="close" id="close-flash">×</a>
@@ -420,7 +467,8 @@
 			<div class="card">
 				<h2>Multiple Matches: nth / first / last</h2>
 				<p class="hint">Tests applied: clique em elementos repetidos usando <strong>nth</strong>,
-					<strong>first</strong>, <strong>last</strong> no contexto.</p>
+					<strong>first</strong>, <strong>last</strong> no contexto.
+				</p>
 				<div id="repeat-scope" class="list">
 					<button class="btn item">Row #1</button>
 					<button class="btn item">Row #2</button>
@@ -477,7 +525,8 @@
 			<div class="card full">
 				<h2>Network: waitRequest</h2>
 				<p class="hint">Tests applied: <strong>waitRequest</strong> (aguarda resposta com <code>status</code> e
-					<code>urlIncludes</code>). Usa JSONPlaceholder (GET 200) para ser estável em servidor estático. </p>
+					<code>urlIncludes</code>). Usa JSONPlaceholder (GET 200) para ser estável em servidor estático.
+				</p>
 				<div class="row">
 					<button class="btn" id="btn-fetch-posts">Fetch posts (GET /posts)</button>
 					<button class="btn" id="btn-fetch-user">Fetch user (GET /users/1)</button>
@@ -493,6 +542,25 @@
 				<div class="row">
 					<button class="btn" id="open-modal">Open modal</button>
 					<div id="card-screenshot" class="pill show" style="padding:18px;">Screenshot this card</div>
+				</div>
+			</div>
+
+			<!-- forEach Playground -->
+			<div class="card full">
+				<h2>forEach Playground</h2>
+				<p class="hint">
+					Tests applied: <strong>forEach</strong> com escopo de item (cada cartão vira “scope”),
+					<strong>type</strong>/<strong>check</strong>/<strong>click</strong> relativos ao item,
+					e combinações com <strong>nth/first/last</strong> em listas internas.
+				</p>
+
+				<div class="row">
+					<button class="btn" id="fx-generate">Generate 5 cards</button>
+					<span id="fx-output" class="pill">No actions yet</span>
+				</div>
+
+				<div id="fx-list" class="fx-list">
+					<!-- JS irá popular os .fx-card aqui -->
 				</div>
 			</div>
 
@@ -596,13 +664,12 @@
 				var out = document.getElementById("net-output");
 				out.textContent = "Fetching " + label + "...";
 				out.classList.add("show");
-				// Fire-and-forget; o runner observará a response:
 				fetch(u, { mode: 'cors' })
 					.then(function (r) {
 						out.textContent = label + " → status " + r.status;
 						return r.json().catch(function () { });
 					})
-					.catch(function (err) {
+					.catch(function () {
 						out.textContent = label + " → error";
 					});
 			}
@@ -620,6 +687,96 @@
 			document.getElementById("close-modal").addEventListener("click", function () {
 				document.getElementById("backdrop").classList.remove("show");
 			});
+
+			// ========== forEach Playground ==========
+			(function forEachPlayground() {
+				var list = document.getElementById("fx-list");
+				var out = document.getElementById("fx-output");
+				var genBtn = document.getElementById("fx-generate");
+
+				function makeCard(idx) {
+					var wrap = document.createElement("div");
+					wrap.className = "fx-card";
+					wrap.setAttribute("data-index", String(idx));
+
+					wrap.innerHTML = '\
+            <div class="fx-row">\
+              <input class="fx-name" type="text" placeholder="name for card #' + (idx + 1) + '" />\
+              <label><input class="fx-check" type="checkbox" /> Active</label>\
+              <button class="btn fx-toggle">Toggle</button>\
+              <button class="btn fx-save">Save</button>\
+              <span class="pill fx-status">Idle</span>\
+            </div>\
+            <div class="fx-row">\
+              <button class="mini" data-key="A">Inner A</button>\
+              <button class="mini" data-key="B">Inner B</button>\
+              <button class="mini" data-key="C">Inner C</button>\
+            </div>\
+          ';
+					return wrap;
+				}
+
+				if (genBtn) {
+					genBtn.addEventListener("click", function () {
+						list.innerHTML = "";
+						for (var i = 0; i < 5; i++) {
+							list.appendChild(makeCard(i));
+						}
+						out.textContent = "Generated 5 cards";
+						out.classList.add("show");
+					});
+				}
+
+				// Delegation para botões dentro dos cards
+				if (list) {
+					list.addEventListener("click", function (e) {
+						var card = e.target.closest(".fx-card");
+						if (!card) return;
+
+						var status = card.querySelector(".fx-status");
+
+						// Toggle checkbox
+						if (e.target.closest(".fx-toggle")) {
+							var ck = card.querySelector(".fx-check");
+							if (ck) ck.checked = !ck.checked;
+							if (status) {
+								status.textContent = "Toggled (active=" + (ck && ck.checked) + ")";
+								status.classList.add("show");
+							}
+							return;
+						}
+
+						// Save - mostra um "Saved!" no status
+						if (e.target.closest(".fx-save")) {
+							if (status) {
+								status.textContent = "Saved!";
+								status.classList.add("show");
+							}
+							if (out) {
+								var idx = Number(card.getAttribute("data-index")) + 1;
+								out.textContent = "Saved card #" + idx;
+								out.classList.add("show");
+							}
+							return;
+						}
+
+						// Botões internos (A/B/C) — útil para nth/first/last dentro do item
+						var mini = e.target.closest(".mini");
+						if (mini) {
+							var key = mini.getAttribute("data-key");
+							var idx = Number(card.getAttribute("data-index")) + 1;
+							if (status) {
+								status.textContent = "Clicked inner " + key;
+								status.classList.add("show");
+							}
+							if (out) {
+								out.textContent = "Clicked inner " + key + " on card #" + idx;
+								out.classList.add("show");
+							}
+						}
+					});
+				}
+			})();
 		})();
 	</script>
 </body>

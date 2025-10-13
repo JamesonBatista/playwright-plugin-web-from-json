@@ -473,6 +473,58 @@ generateTestsFromJson(
   };
   writeFileIfNotExists(example3, JSON.stringify(exampleJson3, null, 2) + "\n");
 
+  const forEachPath = path.join(fixturesDir, "plugin-example-forEach.json");
+  const foreachContent = {
+    describe: {
+      text: "forEach – Playground",
+      url: "http://127.0.0.1:5500/html/index.html",
+
+      "foreach-fill-and-save": {
+        title: "Generate cards, fill name, toggle, save (each card)",
+        actions: [
+          { click: "Generate 5 cards" },
+
+          {
+            forEach: {
+              items: "#fx-list .fx-card",
+              actions: [
+                { loc: ".fx-name", type: "faker.person.fullName()" },
+                { check: ".fx-check" },
+                { click: ".fx-toggle" },
+                { click: ".fx-save" },
+                { expectText: { contains: "Saved!" }, loc: ".fx-status" },
+              ],
+            },
+          },
+        ],
+      },
+
+      "foreach-inner-nth": {
+        title: "Generate cards, click inner B (nth=1) on each",
+        actions: [
+          { click: "Generate 5 cards" },
+
+          {
+            forEach: {
+              items: "#fx-list .fx-card",
+              actions: [
+                { click: ".mini", nth: 1 },
+                {
+                  expectText: { contains: "Clicked inner B" },
+                  loc: ".fx-status",
+                },
+              ],
+            },
+          },
+        ],
+      },
+    },
+  };
+  writeFileIfNotExists(
+    forEachPath,
+    JSON.stringify(foreachContent, null, 2) + "\n"
+  );
+
   console.log("🎯 Setup completed.");
 }
 
@@ -484,451 +536,495 @@ const specContent = `<!doctype html>
 <html lang="en">
 
 <head>
-	<meta charset="utf-8" />
-	<title>playwright-plugin-web-from-json — Scenario Lab</title>
-	<meta name="viewport" content="width=device-width, initial-scale=1" />
-	<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
-	<style>
-		:root {
-			--bg: #0b1020;
-			--card: rgba(255, 255, 255, 0.06);
-			--stroke: rgba(255, 255, 255, 0.18);
-			--txt: #e8eefc;
-			--muted: #a9b2c7;
-			--accent: #8ee6ff;
-			--ok: #5ce19e;
-			--warn: #ffc46b;
-			--err: #ff6b6b;
-			--shadow: 0 10px 30px rgba(0, 0, 0, .35);
-		}
+  <meta charset="utf-8" />
+  <title>playwright-plugin-web-from-json — Scenario Lab</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0b1020;
+      --card: rgba(255, 255, 255, 0.06);
+      --stroke: rgba(255, 255, 255, 0.18);
+      --txt: #e8eefc;
+      --muted: #a9b2c7;
+      --accent: #8ee6ff;
+      --ok: #5ce19e;
+      --warn: #ffc46b;
+      --err: #ff6b6b;
+      --shadow: 0 10px 30px rgba(0, 0, 0, .35);
+    }
 
-		* {
-			box-sizing: border-box;
-		}
+    * {
+      box-sizing: border-box;
+    }
 
-		html,
-		body {
-			height: 100%;
-			background: radial-gradient(1200px 900px at 10% -10%, #1b2b5a 0%, transparent 60%),
-				radial-gradient(1000px 900px at 90% -10%, #273d84 0%, transparent 60%),
-				radial-gradient(1200px 900px at 50% 110%, #12234d 0%, transparent 60%),
-				var(--bg);
-			color: var(--txt);
-			font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, "Noto Sans", "Liberation Sans", sans-serif;
-			margin: 0;
-			line-height: 1.45;
-		}
+    html,
+    body {
+      height: 100%;
+      background: radial-gradient(1200px 900px at 10% -10%, #1b2b5a 0%, transparent 60%),
+        radial-gradient(1000px 900px at 90% -10%, #273d84 0%, transparent 60%),
+        radial-gradient(1200px 900px at 50% 110%, #12234d 0%, transparent 60%),
+        var(--bg);
+      color: var(--txt);
+      font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, "Noto Sans", "Liberation Sans", sans-serif;
+      margin: 0;
+      line-height: 1.45;
+    }
 
-		header {
-			max-width: 1200px;
-			margin: 40px auto 10px;
-			padding: 0 24px;
-		}
+    header {
+      max-width: 1200px;
+      margin: 40px auto 10px;
+      padding: 0 24px;
+    }
 
-		.brand {
-			display: flex;
-			align-items: center;
-			gap: 14px;
-			margin-bottom: 10px;
-		}
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      margin-bottom: 10px;
+    }
 
-		.logo {
-			width: 42px;
-			height: 42px;
-			border-radius: 10px;
-			background: linear-gradient(135deg, #5dd6ff, #7cfcc5);
-			box-shadow: var(--shadow);
-		}
+    .logo {
+      width: 42px;
+      height: 42px;
+      border-radius: 10px;
+      background: linear-gradient(135deg, #5dd6ff, #7cfcc5);
+      box-shadow: var(--shadow);
+    }
 
-		h1 {
-			font-size: 30px;
-			margin: 0;
-			letter-spacing: .4px;
-		}
+    h1 {
+      font-size: 30px;
+      margin: 0;
+      letter-spacing: .4px;
+    }
 
-		.subtitle {
-			color: var(--muted);
-			margin-top: 6px;
-		}
+    .subtitle {
+      color: var(--muted);
+      margin-top: 6px;
+    }
 
-		.urlbar {
-			display: inline-flex;
-			align-items: center;
-			gap: 8px;
-			padding: 8px 12px;
-			border-radius: 12px;
-			border: 1px solid var(--stroke);
-			background: linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.03));
-			backdrop-filter: blur(8px);
-			font-size: 13px;
-			color: var(--muted);
-			box-shadow: var(--shadow);
-		}
+    .urlbar {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      border-radius: 12px;
+      border: 1px solid var(--stroke);
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.03));
+      backdrop-filter: blur(8px);
+      font-size: 13px;
+      color: var(--muted);
+      box-shadow: var(--shadow);
+    }
 
-		.urlbar code {
-			color: var(--accent);
-			font-weight: 600;
-		}
+    .urlbar code {
+      color: var(--accent);
+      font-weight: 600;
+    }
 
-		main {
-			max-width: 1200px;
-			margin: 16px auto 60px;
-			padding: 0 24px;
-		}
+    main {
+      max-width: 1200px;
+      margin: 16px auto 60px;
+      padding: 0 24px;
+    }
 
-		.grid {
-			display: grid;
-			gap: 18px;
-			grid-template-columns: repeat(12, 1fr);
-		}
+    .grid {
+      display: grid;
+      gap: 18px;
+      grid-template-columns: repeat(12, 1fr);
+    }
 
-		.card {
-			grid-column: span 6;
-			border: 1px solid var(--stroke);
-			border-radius: 18px;
-			background: radial-gradient(600px 300px at 20% -10%, rgba(255, 255, 255, .10), transparent 40%),
-				linear-gradient(180deg, rgba(255, 255, 255, 0.10), rgba(255, 255, 255, 0.04));
-			backdrop-filter: blur(10px);
-			padding: 18px;
-			box-shadow: var(--shadow);
-			position: relative;
-		}
+    .card {
+      grid-column: span 6;
+      border: 1px solid var(--stroke);
+      border-radius: 18px;
+      background: radial-gradient(600px 300px at 20% -10%, rgba(255, 255, 255, .10), transparent 40%),
+        linear-gradient(180deg, rgba(255, 255, 255, 0.10), rgba(255, 255, 255, 0.04));
+      backdrop-filter: blur(10px);
+      padding: 18px;
+      box-shadow: var(--shadow);
+      position: relative;
+    }
 
-		.card.full {
-			grid-column: 1 / -1;
-		}
+    .card.full {
+      grid-column: 1 / -1;
+    }
 
-		.card h2 {
-			margin: 0 0 12px;
-			font-size: 18px;
-			letter-spacing: .25px;
-		}
+    .card h2 {
+      margin: 0 0 12px;
+      font-size: 18px;
+      letter-spacing: .25px;
+    }
 
-		.hint {
-			color: var(--muted);
-			font-size: 13px;
-			margin-bottom: 12px;
-		}
+    .hint {
+      color: var(--muted);
+      font-size: 13px;
+      margin-bottom: 12px;
+    }
 
-		.row {
-			display: flex;
-			flex-wrap: wrap;
-			gap: 10px;
-			align-items: center;
-		}
+    .row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+    }
 
-		.btn {
-			padding: 10px 14px;
-			border-radius: 10px;
-			border: 1px solid var(--stroke);
-			background: rgba(255, 255, 255, 0.08);
-			color: var(--txt);
-			font-weight: 600;
-			cursor: pointer;
-			text-decoration: none;
-			display: inline-flex;
-			align-items: center;
-			gap: 8px;
-		}
+    .btn {
+      padding: 10px 14px;
+      border-radius: 10px;
+      border: 1px solid var(--stroke);
+      background: rgba(255, 255, 255, 0.08);
+      color: var(--txt);
+      font-weight: 600;
+      cursor: pointer;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
 
-		.btn:hover {
-			background: rgba(255, 255, 255, 0.12);
-		}
+    .btn:hover {
+      background: rgba(255, 255, 255, 0.12);
+    }
 
-		.ok {
-			color: var(--ok);
-		}
+    .ok {
+      color: var(--ok);
+    }
 
-		.warn {
-			color: var(--warn);
-		}
+    .warn {
+      color: var(--warn);
+    }
 
-		.err {
-			color: var(--err);
-		}
+    .err {
+      color: var(--err);
+    }
 
-		input[type="text"],
-		input[type="email"],
-		input[type="password"],
-		select {
-			border: 1px solid var(--stroke);
-			background: rgba(255, 255, 255, 0.08);
-			color: var(--txt);
-			padding: 10px 12px;
-			border-radius: 10px;
-			min-width: 200px;
-		}
+    input[type="text"],
+    input[type="email"],
+    input[type="password"],
+    select {
+      border: 1px solid var(--stroke);
+      background: rgba(255, 255, 255, 0.08);
+      color: var(--txt);
+      padding: 10px 12px;
+      border-radius: 10px;
+      min-width: 200px;
+    }
 
-		input[type="file"] {
-			color: var(--muted);
-		}
+    input[type="file"] {
+      color: var(--muted);
+    }
 
-		label {
-			font-size: 13px;
-			color: var(--muted);
-		}
+    label {
+      font-size: 13px;
+      color: var(--muted);
+    }
 
-		.toast,
-		.pill {
-			display: none;
-			padding: 10px 12px;
-			border-radius: 10px;
-			border: 1px solid var(--stroke);
-			background: rgba(255, 255, 255, 0.08);
-		}
+    .toast,
+    .pill {
+      display: none;
+      padding: 10px 12px;
+      border-radius: 10px;
+      border: 1px solid var(--stroke);
+      background: rgba(255, 255, 255, 0.08);
+    }
 
-		.toast.show,
-		.pill.show {
-			display: inline-flex;
-		}
+    .toast.show,
+    .pill.show {
+      display: inline-flex;
+    }
 
-		.pill {
-			color: var(--muted);
-		}
+    .pill {
+      color: var(--muted);
+    }
 
-		.divider {
-			height: 1px;
-			background: var(--stroke);
-			margin: 12px 0;
-			opacity: .6;
-		}
+    .divider {
+      height: 1px;
+      background: var(--stroke);
+      margin: 12px 0;
+      opacity: .6;
+    }
 
-		/* tooltip on hover demo */
-		.hover-wrap {
-			position: relative;
-			display: inline-block;
-		}
+    /* tooltip on hover demo */
+    .hover-wrap {
+      position: relative;
+      display: inline-block;
+    }
 
-		.tooltip {
-			position: absolute;
-			inset: auto auto 120% 0;
-			transform: translateY(6px);
-			padding: 8px 10px;
-			border-radius: 8px;
-			border: 1px solid var(--stroke);
-			background: rgba(255, 255, 255, 0.12);
-			color: var(--txt);
-			font-size: 12px;
-			display: none;
-		}
+    .tooltip {
+      position: absolute;
+      inset: auto auto 120% 0;
+      transform: translateY(6px);
+      padding: 8px 10px;
+      border-radius: 8px;
+      border: 1px solid var(--stroke);
+      background: rgba(255, 255, 255, 0.12);
+      color: var(--txt);
+      font-size: 12px;
+      display: none;
+    }
 
-		.hover-wrap:hover .tooltip {
-			display: block;
-		}
+    .hover-wrap:hover .tooltip {
+      display: block;
+    }
 
-		/* iframe */
-		.frame-container {
-			border-radius: 14px;
-			overflow: hidden;
-			border: 1px solid var(--stroke);
-		}
+    /* iframe */
+    .frame-container {
+      border-radius: 14px;
+      overflow: hidden;
+      border: 1px solid var(--stroke);
+    }
 
-		iframe {
-			width: 100%;
-			height: 220px;
-			border: 0;
-			background: rgba(255, 255, 255, 0.04);
-		}
+    iframe {
+      width: 100%;
+      height: 220px;
+      border: 0;
+      background: rgba(255, 255, 255, 0.04);
+    }
 
-		/* repeated selectors for nth/first/last */
-		.list {
-			display: grid;
-			gap: 6px;
-		}
+    /* repeated selectors for nth/first/last */
+    .list {
+      display: grid;
+      gap: 6px;
+    }
 
-		.item {
-			padding: 10px 12px;
-			border: 1px dashed var(--stroke);
-			border-radius: 10px;
-		}
+    .item {
+      padding: 10px 12px;
+      border: 1px dashed var(--stroke);
+      border-radius: 10px;
+    }
 
-		/* flash error demo */
-		.flash {
-			padding: 12px 14px;
-			border: 1px solid var(--err);
-			border-radius: 10px;
-			color: var(--err);
-			background: rgba(255, 0, 0, 0.08);
-		}
+    /* flash error demo */
+    .flash {
+      padding: 12px 14px;
+      border: 1px solid var(--err);
+      border-radius: 10px;
+      color: var(--err);
+      background: rgba(255, 0, 0, 0.08);
+    }
 
-		.flash.hidden {
-			display: none;
-		}
+    .flash.hidden {
+      display: none;
+    }
 
-		.close {
-			color: var(--err);
-			text-decoration: none;
-			font-weight: 800;
-			margin-left: 6px;
-		}
+    .close {
+      color: var(--err);
+      text-decoration: none;
+      font-weight: 800;
+      margin-left: 6px;
+    }
 
-		/* modal */
-		.backdrop {
-			position: fixed;
-			inset: 0;
-			background: rgba(0, 0, 0, .45);
-			display: none;
-			align-items: center;
-			justify-content: center;
-		}
+    /* modal */
+    .backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, .45);
+      display: none;
+      align-items: center;
+      justify-content: center;
+    }
 
-		.backdrop.show {
-			display: flex;
-		}
+    .backdrop.show {
+      display: flex;
+    }
 
-		.modal {
-			width: 440px;
-			border-radius: 16px;
-			border: 1px solid var(--stroke);
-			background: rgba(10, 12, 20, .95);
-			padding: 18px;
-			box-shadow: var(--shadow);
-		}
+    .modal {
+      width: 440px;
+      border-radius: 16px;
+      border: 1px solid var(--stroke);
+      background: rgba(10, 12, 20, .95);
+      padding: 18px;
+      box-shadow: var(--shadow);
+    }
 
-		@media (max-width: 900px) {
-			.card {
-				grid-column: 1 / -1;
-			}
-		}
-	</style>
+    @media (max-width: 900px) {
+      .card {
+        grid-column: 1 / -1;
+      }
+    }
+
+    /* --- forEach Playground --- */
+    .fx-list {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      margin-top: 12px;
+    }
+
+    .fx-card {
+      border: 1px solid var(--stroke);
+      border-radius: 12px;
+      padding: 12px;
+      background: rgba(255, 255, 255, 0.06);
+    }
+
+    .fx-row {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      flex-wrap: wrap;
+      margin-top: 8px;
+    }
+
+    .fx-row:first-child {
+      margin-top: 0;
+    }
+
+    .fx-card .mini {
+      padding: 6px 10px;
+      border-radius: 8px;
+      border: 1px solid var(--stroke);
+      background: rgba(255, 255, 255, 0.08);
+      color: var(--txt);
+    }
+
+    .fx-status {
+      margin-left: 6px;
+    }
+
+    @media (max-width: 900px) {
+      .fx-list {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
 </head>
 
 <body>
-	<header>
-		<div class="brand">
-			<div class="logo"></div>
-			<div>
-				<h1>playwright-plugin-web-from-json</h1>
-				<div class="subtitle">Scenario Lab — a purpose-built page to exercise every action & assertion the
-					plugin supports.</div>
-			</div>
-		</div>
-		<div class="urlbar">Current URL: <code id="current-url"></code></div>
-	</header>
+  <header>
+    <div class="brand">
+      <div class="logo"></div>
+      <div>
+        <h1>playwright-plugin-web-from-json</h1>
+        <div class="subtitle">Scenario Lab — a purpose-built page to exercise every action & assertion the plugin supports.</div>
+      </div>
+    </div>
+    <div class="urlbar">Current URL: <code id="current-url"></code></div>
+  </header>
 
-	<main>
-		<section class="grid">
+  <main>
+    <section class="grid">
 
-			<!-- NAV & URL (hash-based navigation) -->
-			<div class="card">
-				<h2>Navigation & URL</h2>
-				<p class="hint">Tests applied: <strong>click</strong> (by selector), <strong>expectUrl</strong>
-					(contains), hash routing without server.</p>
-				<div class="row">
-					<a id="go-dashboard" class="btn" href="#/dashboard" role="button">Go → #/dashboard</a>
-					<span class="pill" id="nav-pill">Ready</span>
-				</div>
-				<div class="divider"></div>
-				<div class="row">
-					<div class="hover-wrap">
-						<span class="btn">Hover me</span>
-						<div class="tooltip" id="hover-tip">Tooltip shown on hover</div>
-					</div>
-					<span class="hint">Tests: <strong>hover</strong> + <strong>expectVisible</strong> on tooltip.</span>
-				</div>
-			</div>
+      <!-- NAV & URL (hash-based navigation) -->
+      <div class="card">
+        <h2>Navigation & URL</h2>
+        <p class="hint">Tests applied: <strong>click</strong> (by selector), <strong>expectUrl</strong>
+          (contains), hash routing without server.</p>
+        <div class="row">
+          <a id="go-dashboard" class="btn" href="#/dashboard" role="button">Go → #/dashboard</a>
+          <span class="pill" id="nav-pill">Ready</span>
+        </div>
+        <div class="divider"></div>
+        <div class="row">
+          <div class="hover-wrap">
+            <span class="btn">Hover me</span>
+            <div class="tooltip" id="hover-tip">Tooltip shown on hover</div>
+          </div>
+          <span class="hint">Tests: <strong>hover</strong> + <strong>expectVisible</strong> on tooltip.</span>
+        </div>
+      </div>
 
-			<!-- CLICK by text / selector, VISIBLE, TEXT -->
-			<div class="card">
-				<h2>Clicks & Visibility</h2>
-				<p class="hint">Tests applied: <strong>click</strong> by exact text and by selector;
-					<strong>expectVisible</strong>, <strong>expectText</strong>.</p>
-				<div class="row">
-					<button class="btn" id="btn-selector">Make toast visible</button>
-					<div class="toast" id="selector-result">Toast placeholder</div>
-				</div>
-				<div class="row" style="margin-top: 8px">
-					<button class="btn" id="btn-text">Click by exact text</button>
-					<span id="text-result" class="pill">No click yet</span>
-				</div>
-			</div>
+      <!-- CLICK by text / selector, VISIBLE, TEXT -->
+      <div class="card">
+        <h2>Clicks & Visibility</h2>
+        <p class="hint">Tests applied: <strong>click</strong> by exact text and by selector;
+          <strong>expectVisible</strong>, <strong>expectText</strong>.</p>
+        <div class="row">
+          <button class="btn" id="btn-selector">Make toast visible</button>
+          <div class="toast" id="selector-result">Toast placeholder</div>
+        </div>
+        <div class="row" style="margin-top: 8px">
+          <button class="btn" id="btn-text">Click by exact text</button>
+          <span id="text-result" class="pill">No click yet</span>
+        </div>
+      </div>
 
-			<!-- TYPE / TYPE SLOW / PRESS -->
-			<div class="card">
-				<h2>Typing & Keys</h2>
-				<p class="hint">Tests applied: <strong>type</strong>, <strong>typeSlow</strong>, <strong>press</strong>
-					(Enter), dynamic <strong>faker</strong> & <strong>date(...)</strong>.</p>
-				<div class="row">
-					<input type="email" id="email" placeholder="email" />
-					<input type="text" id="name" placeholder="full name" />
-					<input type="password" id="pass" placeholder="password" />
-					<button class="btn" id="btn-show-typed">Show typed</button>
-					<span id="typed-output" class="pill">—</span>
-				</div>
-				<div class="row" style="margin-top: 8px">
-					<input type="text" id="press-input" placeholder="press Enter here" />
-					<span id="press-output" class="pill">Waiting…</span>
-				</div>
-			</div>
+      <!-- TYPE / TYPE SLOW / PRESS -->
+      <div class="card">
+        <h2>Typing & Keys</h2>
+        <p class="hint">Tests applied: <strong>type</strong>, <strong>typeSlow</strong>, <strong>press</strong>
+          (Enter), dynamic <strong>faker</strong> & <strong>date(...)</strong>.</p>
+        <div class="row">
+          <input type="email" id="email" placeholder="email" />
+          <input type="text" id="name" placeholder="full name" />
+          <input type="password" id="pass" placeholder="password" />
+          <button class="btn" id="btn-show-typed">Show typed</button>
+          <span id="typed-output" class="pill">—</span>
+        </div>
+        <div class="row" style="margin-top: 8px">
+          <input type="text" id="press-input" placeholder="press Enter here" />
+          <span id="press-output" class="pill">Waiting…</span>
+        </div>
+      </div>
 
-			<!-- CHECK / RADIO / SELECT / UPLOAD -->
-			<div class="card">
-				<h2>Forms: Check, Radio, Select, Upload</h2>
-				<p class="hint">Tests applied: <strong>check/uncheck</strong>, <strong>select</strong> (by
-					label/value/index), <strong>upload</strong>.</p>
-				<div class="row">
-					<label><input type="checkbox" id="ck-terms" /> Accept terms</label>
-					<label><input type="radio" name="plan" value="free" /> Free</label>
-					<label><input type="radio" name="plan" value="pro" /> Pro</label>
-				</div>
-				<div class="row" style="margin-top: 8px">
-					<label for="country">Country</label>
-					<select id="country">
-						<option value="">—</option>
-						<option value="BR">Brazil</option>
-						<option value="US">United States</option>
-						<option value="DE">Germany</option>
-					</select>
-					<input type="file" id="file" />
-				</div>
-				<div class="row" style="margin-top: 8px">
-					<button class="btn" id="check-read">Read values</button>
-					<span id="check-output" class="pill">terms=?, plan=?, file=?</span>
-				</div>
-			</div>
+      <!-- CHECK / RADIO / SELECT / UPLOAD -->
+      <div class="card">
+        <h2>Forms: Check, Radio, Select, Upload</h2>
+        <p class="hint">Tests applied: <strong>check/uncheck</strong>, <strong>select</strong> (by
+          label/value/index), <strong>upload</strong>.</p>
+        <div class="row">
+          <label><input type="checkbox" id="ck-terms" /> Accept terms</label>
+          <label><input type="radio" name="plan" value="free" /> Free</label>
+          <label><input type="radio" name="plan" value="pro" /> Pro</label>
+        </div>
+        <div class="row" style="margin-top: 8px">
+          <label for="country">Country</label>
+          <select id="country">
+            <option value="">—</option>
+            <option value="BR">Brazil</option>
+            <option value="US">United States</option>
+            <option value="DE">Germany</option>
+          </select>
+          <input type="file" id="file" />
+        </div>
+        <div class="row" style="margin-top: 8px">
+          <button class="btn" id="check-read">Read values</button>
+          <span id="check-output" class="pill">terms=?, plan=?, file=?</span>
+        </div>
+      </div>
 
-			<!-- EXPECT TEXT (with/without loc), FLASH -->
-			<div class="card">
-				<h2>Text Assertions & Flash</h2>
-				<p class="hint">Tests applied: <strong>expectText</strong> com/sem <code>loc</code>,
-					<strong>expectVisible</strong> simples.</p>
-				<div class="flash" id="flash">
-					Your username is invalid!
-					<a href="#" class="close" id="close-flash">×</a>
-				</div>
-			</div>
+      <!-- EXPECT TEXT (with/without loc), FLASH -->
+      <div class="card">
+        <h2>Text Assertions & Flash</h2>
+        <p class="hint">Tests applied: <strong>expectText</strong> com/sem <code>loc</code>,
+          <strong>expectVisible</strong> simples.</p>
+        <div class="flash" id="flash">
+          Your username is invalid!
+          <a href="#" class="close" id="close-flash">×</a>
+        </div>
+      </div>
 
-			<!-- NTH / FIRST / LAST -->
-			<div class="card">
-				<h2>Multiple Matches: nth / first / last</h2>
-				<p class="hint">Tests applied: clique em elementos repetidos usando <strong>nth</strong>,
-					<strong>first</strong>, <strong>last</strong> no contexto.</p>
-				<div id="repeat-scope" class="list">
-					<button class="btn item">Row #1</button>
-					<button class="btn item">Row #2</button>
-					<button class="btn item">Row #3</button>
-				</div>
-				<div class="row" style="margin-top: 8px">
-					<span class="pill" id="repeat-output">No row clicked</span>
-				</div>
-			</div>
+      <!-- NTH / FIRST / LAST -->
+      <div class="card">
+        <h2>Multiple Matches: nth / first / last</h2>
+        <p class="hint">Tests applied: clique em elementos repetidos usando <strong>nth</strong>,
+          <strong>first</strong>, <strong>last</strong> no contexto.</p>
+        <div id="repeat-scope" class="list">
+          <button class="btn item">Row #1</button>
+          <button class="btn item">Row #2</button>
+          <button class="btn item">Row #3</button>
+        </div>
+        <div class="row" style="margin-top: 8px">
+          <span class="pill" id="repeat-output">No row clicked</span>
+        </div>
+      </div>
 
-			<!-- WITHIN / FRAME -->
-			<div class="card">
-				<h2>Within & Iframe</h2>
-				<p class="hint">Tests applied: <strong>within</strong> (escopo de busca) e <strong>frame</strong>
-					(cadeia de iframes).</p>
-				<div class="divider"></div>
-				<div class="row">
-					<div id="within-scope" class="list" style="min-width: 260px;">
-						<button class="btn item">Scoped Button A</button>
-						<button class="btn item">Scoped Button B</button>
-					</div>
-					<span class="pill" id="within-output">No scoped click</span>
-				</div>
-				<div class="divider"></div>
-				<div class="frame-container">
-					<iframe id="demo-frame" srcdoc='
+      <!-- WITHIN / FRAME -->
+      <div class="card">
+        <h2>Within & Iframe</h2>
+        <p class="hint">Tests applied: <strong>within</strong> (escopo de busca) e <strong>frame</strong>
+          (cadeia de iframes).</p>
+        <div class="divider"></div>
+        <div class="row">
+          <div id="within-scope" class="list" style="min-width: 260px;">
+            <button class="btn item">Scoped Button A</button>
+            <button class="btn item">Scoped Button B</button>
+          </div>
+          <span class="pill" id="within-output">No scoped click</span>
+        </div>
+        <div class="divider"></div>
+        <div class="frame-container">
+          <iframe id="demo-frame" srcdoc='
             <!doctype html><html><head>
               <meta charset="utf-8"/>
               <style>
@@ -952,158 +1048,266 @@ const specContent = `<!doctype html>
               </div>
             </body></html>
           '></iframe>
-				</div>
-			</div>
+        </div>
+      </div>
 
-			<!-- WAIT REQUEST -->
-			<div class="card full">
-				<h2>Network: waitRequest</h2>
-				<p class="hint">Tests applied: <strong>waitRequest</strong> (aguarda resposta com <code>status</code> e
-					<code>urlIncludes</code>). Usa JSONPlaceholder (GET 200) para ser estável em servidor estático. </p>
-				<div class="row">
-					<button class="btn" id="btn-fetch-posts">Fetch posts (GET /posts)</button>
-					<button class="btn" id="btn-fetch-user">Fetch user (GET /users/1)</button>
-					<span id="net-output" class="pill">Idle</span>
-				</div>
-			</div>
+      <!-- WAIT REQUEST -->
+      <div class="card full">
+        <h2>Network: waitRequest</h2>
+        <p class="hint">Tests applied: <strong>waitRequest</strong> (aguarda resposta com <code>status</code> e
+          <code>urlIncludes</code>). Usa JSONPlaceholder (GET 200) para ser estável em servidor estático. </p>
+        <div class="row">
+          <button class="btn" id="btn-fetch-posts">Fetch posts (GET /posts)</button>
+          <button class="btn" id="btn-fetch-user">Fetch user (GET /users/1)</button>
+          <span id="net-output" class="pill">Idle</span>
+        </div>
+      </div>
 
-			<!-- MODAL / SCREENSHOT TARGET -->
-			<div class="card">
-				<h2>Modal & Screenshot Targets</h2>
-				<p class="hint">Tests applied: abrir/fechar modal (para <strong>expectVisible</strong>) e um alvo “card”
-					para <strong>screenshot</strong>.</p>
-				<div class="row">
-					<button class="btn" id="open-modal">Open modal</button>
-					<div id="card-screenshot" class="pill show" style="padding:18px;">Screenshot this card</div>
-				</div>
-			</div>
+      <!-- MODAL / SCREENSHOT TARGET -->
+      <div class="card">
+        <h2>Modal & Screenshot Targets</h2>
+        <p class="hint">Tests applied: abrir/fechar modal (para <strong>expectVisible</strong>) e um alvo “card”
+          para <strong>screenshot</strong>.</p>
+        <div class="row">
+          <button class="btn" id="open-modal">Open modal</button>
+          <div id="card-screenshot" class="pill show" style="padding:18px;">Screenshot this card</div>
+        </div>
+      </div>
 
-		</section>
-	</main>
+      <!-- forEach Playground -->
+      <div class="card full">
+        <h2>forEach Playground</h2>
+        <p class="hint">
+          Tests applied: <strong>forEach</strong> com escopo de item (cada cartão vira “scope”),
+          <strong>type</strong>/<strong>check</strong>/<strong>click</strong> relativos ao item,
+          e combinações com <strong>nth/first/last</strong> em listas internas.
+        </p>
 
-	<!-- Modal -->
-	<div class="backdrop" id="backdrop" aria-hidden="true">
-		<div class="modal">
-			<div class="row" style="justify-content: space-between;">
-				<strong>Modal title</strong>
-				<button class="btn" id="close-modal">×</button>
-			</div>
-			<div class="divider"></div>
-			<p>This is a modal body content for visibility checks.</p>
-		</div>
-	</div>
+        <div class="row">
+          <button class="btn" id="fx-generate">Generate 5 cards</button>
+          <span id="fx-output" class="pill">No actions yet</span>
+        </div>
 
-	<script>
-		(function () {
-			// URL badge
-			var urlBadge = document.getElementById("current-url");
-			function refreshURL() { if (urlBadge) urlBadge.textContent = location.href; }
-			refreshURL();
-			window.addEventListener("hashchange", refreshURL);
-			window.addEventListener("popstate", refreshURL);
+        <div id="fx-list" class="fx-list">
+          <!-- JS irá popular os .fx-card aqui -->
+        </div>
+      </div>
 
-			// Click -> toast visible
-			document.getElementById("btn-selector").addEventListener("click", function () {
-				var t = document.getElementById("selector-result");
-				t.textContent = "Selector click OK";
-				t.classList.add("show");
-				// inline hardening
-				t.style.display = "inline-flex";
-				t.style.visibility = "visible";
-				t.style.opacity = "1";
-			});
+    </section>
+  </main>
 
-			// Click by exact text
-			document.getElementById("btn-text").addEventListener("click", function () {
-				var pill = document.getElementById("text-result");
-				pill.textContent = "Clicked by text";
-				pill.classList.add("show");
-			});
+  <!-- Modal -->
+  <div class="backdrop" id="backdrop" aria-hidden="true">
+    <div class="modal">
+      <div class="row" style="justify-content: space-between;">
+        <strong>Modal title</strong>
+        <button class="btn" id="close-modal">×</button>
+      </div>
+      <div class="divider"></div>
+      <p>This is a modal body content for visibility checks.</p>
+    </div>
+  </div>
 
-			// Show typed summary
-			document.getElementById("btn-show-typed").addEventListener("click", function () {
-				var email = (document.getElementById("email").value || "").trim();
-				var name = (document.getElementById("name").value || "").trim();
-				var pass = (document.getElementById("pass").value || "").trim();
-				var out = document.getElementById("typed-output");
-				out.textContent = "email=" + (email || "∅") + ", name=" + (name || "∅") + ", pass=" + (pass ? "•••" : "∅");
-				out.classList.add("show");
-			});
+  <script>
+    (function () {
+      // URL badge
+      var urlBadge = document.getElementById("current-url");
+      function refreshURL() { if (urlBadge) urlBadge.textContent = location.href; }
+      refreshURL();
+      window.addEventListener("hashchange", refreshURL);
+      window.addEventListener("popstate", refreshURL);
 
-			// Press Enter
-			document.getElementById("press-input").addEventListener("keydown", function (e) {
-				if (e.key === "Enter") {
-					var out = document.getElementById("press-output");
-					out.textContent = "Enter pressed!";
-					out.classList.add("show");
-				}
-			});
+      // Click -> toast visible
+      document.getElementById("btn-selector").addEventListener("click", function () {
+        var t = document.getElementById("selector-result");
+        t.textContent = "Selector click OK";
+        t.classList.add("show");
+        // inline hardening
+        t.style.display = "inline-flex";
+        t.style.visibility = "visible";
+        t.style.opacity = "1";
+      });
 
-			// Read check/radio/upload
-			document.getElementById("check-read").addEventListener("click", function () {
-				var terms = !!document.getElementById("ck-terms").checked;
-				var checked = document.querySelector("input[name='plan']:checked");
-				var plan = checked ? checked.value : "none";
-				var file = document.getElementById("file").files[0];
-				var fileName = file ? file.name : "none";
-				var out = document.getElementById("check-output");
-				out.textContent = "terms=" + terms + ", plan=" + plan + ", file=" + fileName;
-				out.classList.add("show");
-			});
+      // Click by exact text
+      document.getElementById("btn-text").addEventListener("click", function () {
+        var pill = document.getElementById("text-result");
+        pill.textContent = "Clicked by text";
+        pill.classList.add("show");
+      });
 
-			// Close flash
-			document.getElementById("close-flash").addEventListener("click", function (e) {
-				e.preventDefault();
-				document.getElementById("flash").classList.add("hidden");
-			});
+      // Show typed summary
+      document.getElementById("btn-show-typed").addEventListener("click", function () {
+        var email = (document.getElementById("email").value || "").trim();
+        var name = (document.getElementById("name").value || "").trim();
+        var pass = (document.getElementById("pass").value || "").trim();
+        var out = document.getElementById("typed-output");
+        out.textContent = "email=" + (email || "∅") + ", name=" + (name || "∅") + ", pass=" + (pass ? "•••" : "∅");
+        out.classList.add("show");
+      });
 
-			// Repeated selectors demo
-			document.getElementById("repeat-scope").addEventListener("click", function (e) {
-				var btn = e.target.closest(".item");
-				if (!btn) return;
-				document.getElementById("repeat-output").textContent = "Clicked: " + btn.textContent.trim();
-				document.getElementById("repeat-output").classList.add("show");
-			});
+      // Press Enter
+      document.getElementById("press-input").addEventListener("keydown", function (e) {
+        if (e.key === "Enter") {
+          var out = document.getElementById("press-output");
+          out.textContent = "Enter pressed!";
+          out.classList.add("show");
+        }
+      });
 
-			// Within scope click
-			document.getElementById("within-scope").addEventListener("click", function (e) {
-				var btn = e.target.closest(".item");
-				if (!btn) return;
-				document.getElementById("within-output").textContent = "Within clicked: " + btn.textContent.trim();
-				document.getElementById("within-output").classList.add("show");
-			});
+      // Read check/radio/upload
+      document.getElementById("check-read").addEventListener("click", function () {
+        var terms = !!document.getElementById("ck-terms").checked;
+        var checked = document.querySelector("input[name='plan']:checked");
+        var plan = checked ? checked.value : "none";
+        var file = document.getElementById("file").files[0];
+        var fileName = file ? file.name : "none";
+        var out = document.getElementById("check-output");
+        out.textContent = "terms=" + terms + ", plan=" + plan + ", file=" + fileName;
+        out.classList.add("show");
+      });
 
-			// Network buttons (JSONPlaceholder)
-			function fetchJSON(u, label) {
-				var out = document.getElementById("net-output");
-				out.textContent = "Fetching " + label + "...";
-				out.classList.add("show");
-				// Fire-and-forget; o runner observará a response:
-				fetch(u, { mode: 'cors' })
-					.then(function (r) {
-						out.textContent = label + " → status " + r.status;
-						return r.json().catch(function () { });
-					})
-					.catch(function (err) {
-						out.textContent = label + " → error";
-					});
-			}
-			document.getElementById("btn-fetch-posts").addEventListener("click", function () {
-				fetchJSON("https://jsonplaceholder.typicode.com/posts", "GET /posts");
-			});
-			document.getElementById("btn-fetch-user").addEventListener("click", function () {
-				fetchJSON("https://jsonplaceholder.typicode.com/users/1", "GET /users/1");
-			});
+      // Close flash
+      document.getElementById("close-flash").addEventListener("click", function (e) {
+        e.preventDefault();
+        document.getElementById("flash").classList.add("hidden");
+      });
 
-			// Modal
-			document.getElementById("open-modal").addEventListener("click", function () {
-				document.getElementById("backdrop").classList.add("show");
-			});
-			document.getElementById("close-modal").addEventListener("click", function () {
-				document.getElementById("backdrop").classList.remove("show");
-			});
-		})();
-	</script>
+      // Repeated selectors demo
+      document.getElementById("repeat-scope").addEventListener("click", function (e) {
+        var btn = e.target.closest(".item");
+        if (!btn) return;
+        document.getElementById("repeat-output").textContent = "Clicked: " + btn.textContent.trim();
+        document.getElementById("repeat-output").classList.add("show");
+      });
+
+      // Within scope click
+      document.getElementById("within-scope").addEventListener("click", function (e) {
+        var btn = e.target.closest(".item");
+        if (!btn) return;
+        document.getElementById("within-output").textContent = "Within clicked: " + btn.textContent.trim();
+        document.getElementById("within-output").classList.add("show");
+      });
+
+      // Network buttons (JSONPlaceholder)
+      function fetchJSON(u, label) {
+        var out = document.getElementById("net-output");
+        out.textContent = "Fetching " + label + "...";
+        out.classList.add("show");
+        fetch(u, { mode: 'cors' })
+          .then(function (r) {
+            out.textContent = label + " → status " + r.status;
+            return r.json().catch(function () { });
+          })
+          .catch(function () {
+            out.textContent = label + " → error";
+          });
+      }
+      document.getElementById("btn-fetch-posts").addEventListener("click", function () {
+        fetchJSON("https://jsonplaceholder.typicode.com/posts", "GET /posts");
+      });
+      document.getElementById("btn-fetch-user").addEventListener("click", function () {
+        fetchJSON("https://jsonplaceholder.typicode.com/users/1", "GET /users/1");
+      });
+
+      // Modal
+      document.getElementById("open-modal").addEventListener("click", function () {
+        document.getElementById("backdrop").classList.add("show");
+      });
+      document.getElementById("close-modal").addEventListener("click", function () {
+        document.getElementById("backdrop").classList.remove("show");
+      });
+
+      // ========== forEach Playground ==========
+      (function forEachPlayground() {
+        var list = document.getElementById("fx-list");
+        var out = document.getElementById("fx-output");
+        var genBtn = document.getElementById("fx-generate");
+
+        function makeCard(idx) {
+          var wrap = document.createElement("div");
+          wrap.className = "fx-card";
+          wrap.setAttribute("data-index", String(idx));
+
+          wrap.innerHTML = '\
+            <div class="fx-row">\
+              <input class="fx-name" type="text" placeholder="name for card #' + (idx + 1) + '" />\
+              <label><input class="fx-check" type="checkbox" /> Active</label>\
+              <button class="btn fx-toggle">Toggle</button>\
+              <button class="btn fx-save">Save</button>\
+              <span class="pill fx-status">Idle</span>\
+            </div>\
+            <div class="fx-row">\
+              <button class="mini" data-key="A">Inner A</button>\
+              <button class="mini" data-key="B">Inner B</button>\
+              <button class="mini" data-key="C">Inner C</button>\
+            </div>\
+          ';
+          return wrap;
+        }
+
+        if (genBtn) {
+          genBtn.addEventListener("click", function () {
+            list.innerHTML = "";
+            for (var i = 0; i < 5; i++) {
+              list.appendChild(makeCard(i));
+            }
+            out.textContent = "Generated 5 cards";
+            out.classList.add("show");
+          });
+        }
+
+        // Delegation para botões dentro dos cards
+        if (list) {
+          list.addEventListener("click", function (e) {
+            var card = e.target.closest(".fx-card");
+            if (!card) return;
+
+            var status = card.querySelector(".fx-status");
+
+            // Toggle checkbox
+            if (e.target.closest(".fx-toggle")) {
+              var ck = card.querySelector(".fx-check");
+              if (ck) ck.checked = !ck.checked;
+              if (status) {
+                status.textContent = "Toggled (active=" + (ck && ck.checked) + ")";
+                status.classList.add("show");
+              }
+              return;
+            }
+
+            // Save - mostra um "Saved!" no status
+            if (e.target.closest(".fx-save")) {
+              if (status) {
+                status.textContent = "Saved!";
+                status.classList.add("show");
+              }
+              if (out) {
+                var idx = Number(card.getAttribute("data-index")) + 1;
+                out.textContent = "Saved card #" + idx;
+                out.classList.add("show");
+              }
+              return;
+            }
+
+            // Botões internos (A/B/C) — útil para nth/first/last dentro do item
+            var mini = e.target.closest(".mini");
+            if (mini) {
+              var key = mini.getAttribute("data-key");
+              var idx = Number(card.getAttribute("data-index")) + 1;
+              if (status) {
+                status.textContent = "Clicked inner " + key;
+                status.classList.add("show");
+              }
+              if (out) {
+                out.textContent = "Clicked inner " + key + " on card #" + idx;
+                out.classList.add("show");
+              }
+            }
+          });
+        }
+      })();
+    })();
+  </script>
 </body>
 
 </html>
