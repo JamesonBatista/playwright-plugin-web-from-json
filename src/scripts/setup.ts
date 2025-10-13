@@ -49,6 +49,30 @@ if (isRunningInsideOwnPackage) {
 function main() {
   const projectRoot = process.env.INIT_CWD || process.cwd();
 
+  // 0) hooks/ + before-json.json
+  const hooksDir = path.resolve(projectRoot, "hooks");
+  ensureDir(hooksDir);
+
+  const beforeJsonPath = path.join(hooksDir, "before-json.json");
+  const beforeJsonContent = {
+    describe: {
+      text: "Before",
+      url: "https://www.latamairlines.com/br/pt",
+      "case-key": {
+        title: "Buy ticket",
+        actions: [
+          {
+            wait: 3000,
+          },
+        ],
+      },
+    },
+  };
+  writeFileIfNotExists(
+    beforeJsonPath,
+    JSON.stringify(beforeJsonContent, null, 2) + "\n"
+  );
+
   // 1) Fixtures/
   const fixturesDir = path.resolve(projectRoot, "Fixtures");
   ensureDir(fixturesDir);
@@ -81,196 +105,15 @@ import path from "path";
 generateTestsFromJson(
   {
     dir: path.resolve(process.cwd(), "Fixtures"),
-    // baseURLOverride: "https://your-app.example"
+    // baseURLOverride: "http://127.0.0.1:5500/html/index.html",
+    // functionsPath: path.resolve(process.cwd(), "help/plugin-func.ts"),
+    allowNoopWhenEmpty: true,
   },
   test
 );
+
 `;
   writeFileIfNotExists(specPath, specContent);
-
-  // 3) VS Code snippets (.vscode/snippets/json.json)
-  const vscodeSnippetsDir = path.resolve(projectRoot, ".vscode");
-  const jsonSnippetsPath = path.join(vscodeSnippetsDir, "plugin.code-snippets");
-
-  // These are the snippets we want to ensure exist
-  const snippetsToAdd = {
-    "PW JSON: Minimal suite": {
-      prefix: "json_describe",
-      description: "Create a minimal JSON with one describe and one case",
-      body: [
-        "{",
-        '  "describe": {',
-        '    "text": "${1:Example JSON test}",',
-        '    "${2:case-key}": {',
-        '      "title": "${3:Test title}",',
-        '      "url": "${4:/}",',
-        '      "actions": [',
-        '        { "click": "${5:a > Get started}" },',
-        '        { "expectVisible": "${6:Loaded}" }',
-        "      ]",
-        "    }",
-        "  }",
-        "}",
-      ],
-    },
-    "PW JSON: Two cases (same describe)": {
-      prefix: "json_describe-two",
-      description:
-        "Create a JSON with one describe and two cases (second without url, stays on page)",
-      body: [
-        "{",
-        '  "describe": {',
-        '    "text": "${1:Suite name}",',
-        '    "${2:first-case}": {',
-        '      "title": "${3:First case}",',
-        '      "url": "${4:/login}",',
-        '      "actions": [',
-        '        { "loc": "#email", "type": "${5:faker.internet.email()}" },',
-        '        { "loc": "#password", "type": "${6:Secret123}" },',
-        '        { "click": "${7:button > Sign in}" },',
-        '        { "expectUrl": { "contains": "${8:/dashboard}" } }',
-        "      ]",
-        "    },",
-        '    "${9:second-case}": {',
-        '      "title": "${10:Follow-up without url}",',
-        '      "actions": [',
-        '        { "click": "${11:a > Settings}" },',
-        '        { "expectVisible": "${12:Settings}" }',
-        "      ]",
-        "    }",
-        "  }",
-        "}",
-      ],
-    },
-    "PW JSON: Full featured template": {
-      prefix: "json-full",
-      description:
-        "Full template with before, frame/within/nth, waitRequest, and expectVisible (string+timeout)",
-      body: [
-        "{",
-        '  "describe": {',
-        '    "text": "${1:CRUD Suite}",',
-        '    "before": "${2:./00-login.json}",',
-        "",
-        '    "${3:create-item}": {',
-        '      "title": "${4:Create item}",',
-        '      "url": "${5:/items/new}",',
-        '      "actions": [',
-        '        { "loc": "#title", "type": "${6:faker.person.fullName()}" },',
-        '        { "select": { "label": "${7:High}" }, "loc": "${8:#priority}" },',
-        '        { "upload": "${9:tests/fixtures/file.png}", "loc": "${10:input[type=file]}" },',
-        '        { "click": "${11:button > Save}" },',
-        '        { "waitRequest": { "urlIncludes": "${12:/api/items}", "status": ${13:200} } },',
-        '        { "expectUrl": { "contains": "${14:/items/}" } }',
-        "      ]",
-        "    },",
-        "",
-        '    "${15:verify-in-iframe}": {',
-        '      "title": "${16:Verify details inside iframe}",',
-        '      "actions": [',
-        '        { "click": "${17:a > Details}" },',
-        '        { "expectVisible": "${18:h2 > Item details}", "frame": "${19:iframe#details}" },',
-        '        { "expectText": { "contains": "${20:Status: Active}" }, "loc": "${21:.status}", "frame": "${22:iframe#details}", "within": "${23:.panel}", "nth": ${24:0} }',
-        "      ]",
-        "    },",
-        "",
-        '    "${25:list-rows}": {',
-        '      "title": "${26:Check rows}",',
-        '      "actions": [',
-        '        { "expectVisible": "${27:.row}", "first": true },',
-        '        { "expectVisible": "${28:.row}", "last": true },',
-        '        { "expectVisible": "${29:.row}", "nth": ${30:2}, "timeout": ${31:5000} }',
-        "      ]",
-        "    }",
-        "  }",
-        "}",
-      ],
-    },
-    "PW JSON (no describe): single case": {
-      prefix: "json-nodesc-one",
-      description: "JSON without describe — single case at root",
-      body: [
-        "{",
-        '  "title": "${1:Test title}",',
-        '  "url": "${2:/}",',
-        '  "actions": [',
-        '    { "click": "${3:a > Get started}" },',
-        '    { "expectVisible": "${4:Loaded}" }',
-        "  ]",
-        "}",
-      ],
-    },
-    "PW JSON (no describe): multiple cases (array)": {
-      prefix: "json-nodesc-array",
-      description: "JSON without describe — multiple cases as array",
-      body: [
-        "[",
-        "  {",
-        '    "title": "${1:First case}",',
-        '    "url": "${2:/login}",',
-        '    "actions": [',
-        '      { "loc": "#email", "type": "${3:faker.internet.email()}" },',
-        '      { "loc": "#password", "type": "${4:Secret123}" },',
-        '      { "click": "${5:button > Sign in}" },',
-        '      { "expectUrl": { "contains": "${6:/dashboard}" } }',
-        "    ]",
-        "  },",
-        "  {",
-        '    "title": "${7:Second case (no url, stays on page)}",',
-        '    "actions": [',
-        '      { "click": "${8:a > Settings}" },',
-        '      { "expectVisible": "${9:Settings}" }',
-        "    ]",
-        "  }",
-        "]",
-      ],
-    },
-    "PW JSON (no describe): flat object (named cases)": {
-      prefix: "json-nodesc-map",
-      description: "JSON without describe — object with named cases as keys",
-      body: [
-        "{",
-        '  "${1:login}": {',
-        '    "title": "${2:Login}",',
-        '    "url": "${3:/login}",',
-        '    "actions": [',
-        '      { "loc": "#email", "type": "${4:faker.internet.email()}" },',
-        '      { "loc": "#password", "type": "${5:Secret123}" },',
-        '      { "click": "${6:button > Sign in}" }',
-        "    ]",
-        "  },",
-        '  "${7:profile}": {',
-        '    "title": "${8:Open profile}",',
-        '    "actions": [',
-        '      { "click": "${9:a > Profile}" },',
-        '      { "expectVisible": "${10:h1 > Profile}" }',
-        "    ]",
-        "  }",
-        "}",
-      ],
-    },
-  };
-
-  // Merge strategy: add keys that don't exist, keep existing as-is
-  const existing =
-    readJsonIfExists<Record<string, any>>(jsonSnippetsPath) || {};
-  let added = 0;
-  for (const [key, val] of Object.entries(snippetsToAdd)) {
-    if (!(key in existing)) {
-      (existing as any)[key] = val;
-      added++;
-    }
-  }
-  if (added > 0) {
-    writeJsonPretty(jsonSnippetsPath, existing);
-  } else {
-    console.log(
-      `↪︎ VS Code snippets already present (no changes): ${path.relative(
-        process.cwd(),
-        jsonSnippetsPath
-      )}`
-    );
-  }
 
   const exampleJsonPathSnippets = path.join(
     fixturesDir,
@@ -279,10 +122,9 @@ generateTestsFromJson(
   const exampleJsonSnippets = {
     describe: {
       text: "playwright-plugin-web-from-json — Scenario Lab (Full Suite)",
-
+      url: "http://127.0.0.1:5500/html/index.html",
       "open-page": {
         title: "Open Scenario Lab",
-        url: "http://127.0.0.1:5500",
         actions: [
           { expectVisible: "h2 > Navigation & URL" },
           { expectText: { contains: "Scenario Lab" } },
@@ -454,6 +296,21 @@ generateTestsFromJson(
     exampleJsonPathSnippets,
     JSON.stringify(exampleJsonSnippets, null, 2) + "\n"
   );
+  // before example
+  const beforePath = path.join(fixturesDir, "before-plugin.json");
+  const beforeExample = {
+    describe: {
+      text: "Using Test before Funcion",
+      before: "../hooks/before-json.json",
+      actions: [{ wait: 3000 }],
+    },
+  };
+  writeFileIfNotExists(
+    beforePath,
+    JSON.stringify(beforeExample, null, 2) + "\n"
+  );
+
+  // before final
 
   // secund json
   const exampleJsonPathSecond = path.join(
@@ -463,9 +320,9 @@ generateTestsFromJson(
   const exampleJsonSecond = {
     describe: {
       text: "Test in Voe Latam",
+      url: "https://www.latamairlines.com/br/pt",
       "case-key": {
         title: "Buy ticket",
-        url: "https://www.latamairlines.com/br/pt",
         actions: [
           { click: "Aceite todos os cookies" },
           {
@@ -575,12 +432,12 @@ generateTestsFromJson(
         ],
       },
       "Register in Iframe": {
-        run: "userEmail",
         title: "New Register in platform with Iframe",
         actions: [
           { click: "Menu" },
           { click: "nav ul li > Cadastro Iframe" },
           {
+            run: "userEmail",
             frame: ".cadastro-iframe",
             root: "#cadastroForm",
             loc: "#name",
@@ -592,8 +449,8 @@ generateTestsFromJson(
             loc: "#email",
             type: "faker.internet.email()",
           },
-          { run: "hello" },
           {
+            run: "hello",
             frame: ".cadastro-iframe",
             root: "#cadastroForm",
             loc: "#address",
@@ -1253,8 +1110,9 @@ const specContent = `<!doctype html>
 `;
 writeFileIfNotExists(jsonSnippetsPath, specContent);
 
-// html
+// help/RunPluginFunctions
 const runFunc = path.resolve(projectRoot, "help");
+ensureDir(runFunc);
 const nameRunfunc = path.join(runFunc, "plugin-func.ts");
 const cont = `
 export class RunPluginFunctions { // not modify name
@@ -1284,4 +1142,5 @@ export class RunPluginFunctions { // not modify name
 
 `;
 writeFileIfNotExists(nameRunfunc, cont);
+
 main();

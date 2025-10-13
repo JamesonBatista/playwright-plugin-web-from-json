@@ -4,70 +4,47 @@ import type {
   FrameLocator,
   Locator,
   Page,
+  TestType,
 } from "@playwright/test";
-import { resolveCasesChain } from "./json-loader";
-import { isSelector, resolveDynamic } from "./util";
-import { LocatorContext, TestCase } from "./types";
-import { handleWaitRequest } from "./handleWaitRequest";
-
+import * as fs from "fs";
 import * as path from "path";
 
-type ExecOpts = {
+// usa suas utilities
+import { isSelector, resolveDynamic } from "./util";
+
+/* ===================== Options ===================== */
+export type ExecOpts = {
   baseURLOverride?: string;
   /** Optional path to a file that exports class RunPluginFunctions */
   functionsPath?: string;
 };
 
-/* --------------------- Dynamic function loader ----------------------
-   Loads user's class RunPluginFunctions so we can call case/action "run".
------------------------------------------------------------------------- */
-type FunctionsCtor = new () => any;
-async function loadRunFunctions(
-  functionsPath?: string
-): Promise<any | undefined> {
-  const projectRoot = process.env.INIT_CWD || process.cwd();
-  const fixturesDir = path.resolve(projectRoot, "help");
-
-  const candidates = functionsPath
-    ? [functionsPath]
-    : [`${fixturesDir}/plugin-func.ts`, `${fixturesDir}/plugin-func.js`];
-  for (const p of candidates) {
-    try {
-      // @ts-ignore dynamic path
-      const mod = await import(/* @vite-ignore */ p);
-      const Ctor: FunctionsCtor | undefined =
-        mod?.RunPluginFunctions ??
-        mod?.default?.RunPluginFunctions ??
-        mod?.default;
-      if (Ctor) return new Ctor();
-    } catch {
-      // try next candidate silently
-    }
-  }
-  return undefined;
+/* ===================== Helpers ===================== */
+function escapeRegex(s: string) {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+function globToRegExp(glob: string) {
+  const escaped = glob
+    .replace(/[.+^${}()|[\]\\]/g, "\\$&")
+    .replace(/\*\*/g, ".*")
+    .replace(/\*/g, "[^/]*");
+  return new RegExp("^" + escaped + "$");
 }
 
-/* ------------------------- Interpolation -----------------------------
-   Replaces tokens like {resultFunc} or {resultFunc.email} anywhere.
------------------------------------------------------------------------- */
-function getByPath(obj: any, path: string) {
-  if (!path) return obj;
-  return path
+function splitTagTextPattern(
+  input: string
+): { tag: string; text: string } | null {
+  if (!input.includes(">")) return null;
+  const [tagRaw, textRaw] = input.split(">").map((s) => s.trim());
+  if (!tagRaw || !textRaw) return null;
+  return { tag: tagRaw.toLowerCase(), text: textRaw };
+}
+
+function getByPath(obj: any, pathStr: string) {
+  if (!pathStr) return obj;
+  return pathStr
     .split(".")
     .reduce((acc, key) => (acc == null ? acc : acc[key]), obj);
-}
-
-/* Allows writing to vars using dot-notation, e.g. "user.email" */
-function setByPath(obj: Record<string, any>, path: string, value: any) {
-  if (!path) return;
-  const keys = path.split(".");
-  const last = keys.pop()!;
-  let ref = obj;
-  for (const k of keys) {
-    if (ref[k] == null || typeof ref[k] !== "object") ref[k] = {};
-    ref = ref[k];
-  }
-  ref[last] = value;
 }
 
 function interpolateTokens(str: unknown, bag: Record<string, any>) {
@@ -80,28 +57,45 @@ function interpolateTokens(str: unknown, bag: Record<string, any>) {
   });
 }
 
-/* ===================== Helpers ===================== */
-
-/** Splits "tag > text" into { tag, text } or returns null. */
-function splitTagTextPattern(
-  input: string
-): { tag: string; text: string } | null {
-  if (!input.includes(">")) return null;
-  const [tagRaw, textRaw] = input.split(">").map((s) => s.trim());
-  if (!tagRaw || !textRaw) return null;
-  return { tag: tagRaw.toLowerCase(), text: textRaw };
+/* ===================== Dynamic function loader ===================== */
+type FunctionsCtor = new () => any;
+async function loadRunFunctions(
+  functionsPath?: string
+): Promise<any | undefined> {
+  const projectRoot = process.env.INIT_CWD || process.cwd();
+  const fixturesDir = path.resolve(projectRoot, "help");
+  const candidates = functionsPath
+    ? [functionsPath]
+    : [
+        `${fixturesDir}/plugin-func.ts`,
+        `${fixturesDir}/plugin-func.js`,
+        `${fixturesDir}/plugin-fns.ts`,
+        `${fixturesDir}/plugin-fns.js`,
+      ];
+  for (const p of candidates) {
+    try {
+      // @ts-ignore dynamic path
+      const mod = await import(/* @vite-ignore */ p);
+      const Ctor: FunctionsCtor | undefined =
+        mod?.RunPluginFunctions ??
+        mod?.default?.RunPluginFunctions ??
+        mod?.default;
+      if (Ctor) return new Ctor();
+    } catch {
+      /* ignore and try next */
+    }
+  }
+  return undefined;
 }
 
-/**
- * Applies index strategy using action-level overrides first, then case-level:
- * - If `nth` is set, it cannot be combined with `first`/`last`.
- * - Else `last`, else `first`, else default to `.first()`.
- */
-function applyIndex(
-  loc: Locator,
-  actionCtx?: LocatorContext,
-  caseCtx?: LocatorContext
-) {
+/* ===================== JSON loader ===================== */
+function loadJSON(absPath: string): any {
+  const raw = fs.readFileSync(absPath, "utf-8");
+  return JSON.parse(raw);
+}
+
+/* ===================== Scope / locator ===================== */
+function applyIndex(loc: Locator, actionCtx?: any, caseCtx?: any) {
   const nth = actionCtx?.nth ?? caseCtx?.nth;
   const first = actionCtx?.first ?? caseCtx?.first;
   const last = actionCtx?.last ?? caseCtx?.last;
@@ -117,20 +111,10 @@ function applyIndex(
   return loc.first(); // default
 }
 
-/**
- * Builds the action scope by chaining:
- *  (optional base) → frame(s)/iframe(s) → root → parent(+index climbs) → within
- *
- * - baseScope: allows running actions inside a pre-selected element (used by forEach)
- * - frame/iframe: string | string[] → scope.frameLocator(...)
- * - root: selector relative to current scope
- * - parent: selector OR exact text → resolve, then climb via locator("..") "index" times (default 1)
- * - within: additional narrowing selector on the final scope
- */
 async function buildScope(
   page: Page,
-  actionCtx?: LocatorContext,
-  caseCtx?: LocatorContext,
+  actionCtx?: any,
+  caseCtx?: any,
   baseScope?: Page | FrameLocator | Locator
 ): Promise<Page | FrameLocator | Locator> {
   const frameSel =
@@ -139,34 +123,33 @@ async function buildScope(
     (caseCtx as any)?.frame ??
     (caseCtx as any)?.iframe;
 
-  const rootSel = (actionCtx as any)?.root ?? undefined;
-  const parentSel = (actionCtx as any)?.parent ?? undefined;
-  const parentIndexUp = (actionCtx as any)?.index; // number of ".." climbs
+  const rootSel = (actionCtx as any)?.root ?? (caseCtx as any)?.root;
+  const parentSel = (actionCtx as any)?.parent ?? (caseCtx as any)?.parent;
+  const parentIndexUp = (actionCtx as any)?.index ?? (caseCtx as any)?.index;
   const withinSel = (actionCtx as any)?.within ?? (caseCtx as any)?.within;
 
   let scope: Page | FrameLocator | Locator = baseScope ?? page;
 
-  // 1) frame(s)/iframe(s)
+  // frame chain
   const chain = Array.isArray(frameSel) ? frameSel : frameSel ? [frameSel] : [];
   for (const sel of chain) {
     // @ts-ignore
     scope = (scope as any).frameLocator(sel);
   }
 
-  // 2) root
+  // root
   if (rootSel) {
     // @ts-ignore
     scope = (scope as any).locator(rootSel);
   }
 
-  // 3) parent (+index climbs)
+  // parent (+ climbs)
   if (parentSel) {
     let parentLocator: Locator;
     if (isSelector(parentSel)) {
       // @ts-ignore
       parentLocator = (scope as any).locator(parentSel);
     } else {
-      // By text (exact)
       // @ts-ignore
       parentLocator = (scope as any).getByText(String(parentSel), {
         exact: true,
@@ -174,24 +157,19 @@ async function buildScope(
     }
 
     const exists = (await parentLocator.count()) > 0;
-    if (!exists) {
-      throw new Error(`parent not found: ${String(parentSel)}`);
-    }
+    if (!exists) throw new Error(`parent not found: ${String(parentSel)}`);
 
     const up =
       typeof parentIndexUp === "number" && parentIndexUp >= 1
         ? Math.floor(parentIndexUp)
         : 1;
-
     let climbed: Locator = parentLocator;
-    for (let i = 0; i < up; i++) {
-      climbed = climbed.locator("..");
-    }
+    for (let i = 0; i < up; i++) climbed = climbed.locator("..");
     // @ts-ignore
     scope = climbed;
   }
 
-  // 4) within
+  // within
   if (withinSel) {
     // @ts-ignore
     scope = (scope as any).locator(withinSel);
@@ -200,125 +178,77 @@ async function buildScope(
   return scope;
 }
 
-/**
- * Creates a locator from the given scope and raw target string.
- * Supports:
- *  - "tag > text" → scope.locator(tag, { hasText: text })
- *  - selector → scope.locator(selector)
- *  - exact text → scope.getByText(text, { exact: true })
- * Applies index (nth/first/last) unless `unindexed` = true.
- */
 function makeLocatorFromScope(
   scope: Page | FrameLocator | Locator,
   raw: string,
-  actionCtx?: LocatorContext,
-  caseCtx?: LocatorContext,
-  unindexed: boolean = false
+  actionCtx?: any,
+  caseCtx?: any,
+  unindexed = false
 ): Locator {
   const tt = splitTagTextPattern(raw);
   let loc: Locator;
+
   if (tt) {
+    // "button > Salvar"
     // @ts-ignore
     loc = (scope as any).locator(tt.tag, { hasText: tt.text });
   } else if (isSelector(raw)) {
-    // @ts-ignore
-    loc = (scope as any).locator(raw);
+    // tenta seletor; se for inválido, cai pra texto
+    try {
+      // @ts-ignore
+      loc = (scope as any).locator(raw);
+    } catch {
+      // @ts-ignore
+      loc = (scope as any).getByText(raw, { exact: true });
+    }
   } else {
     // @ts-ignore
     loc = (scope as any).getByText(raw, { exact: true });
   }
+
   return unindexed ? (loc as Locator) : applyIndex(loc, actionCtx, caseCtx);
 }
 
-/** Escapes a string to be used inside a RegExp constructor. */
-function escapeRegex(s: string) {
-  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+/* ===================== URL resolver ===================== */
+function resolveUrlForCase(
+  caseUrl: string | undefined,
+  suiteUrl: string | undefined,
+  vars: Record<string, any>,
+  baseURL?: string,
+  baseURLOverride?: string,
+  caseTitle?: string
+): string | undefined {
+  const raw = caseUrl ?? suiteUrl;
+  if (raw === undefined) return undefined;
+
+  const trimmed = String(interpolateTokens(raw ?? "", vars)).trim();
+  const effectiveBase = baseURLOverride ?? baseURL;
+
+  if (!trimmed) {
+    if (!effectiveBase)
+      throw new Error(
+        `No baseURL to open when url is empty${
+          caseTitle ? ` in "${caseTitle}"` : ""
+        }.`
+      );
+    return effectiveBase;
+  }
+  if (/^https?:\/\//i.test(trimmed)) return trimmed;
+
+  if (!effectiveBase) {
+    throw new Error(
+      `Relative url "${trimmed}" without baseURL${
+        caseTitle ? ` in "${caseTitle}"` : ""
+      }.`
+    );
+  }
+  return new URL(trimmed, effectiveBase).toString();
 }
 
-/** Minimal glob ("**" & "*") to RegExp converter for URL matching. */
-function globToRegExp(glob: string) {
-  const escaped = glob
-    .replace(/[.+^${}()|[\]\\]/g, "\\$&")
-    .replace(/\*\*/g, ".*")
-    .replace(/\*/g, "[^/]*");
-  return new RegExp("^" + escaped + "$");
-}
-
-/* ---------------- Interpolate an entire action object -----------------
-   Walks the action and interpolates string fields using {resultFunc...}.
------------------------------------------------------------------------- */
-function interpolateAction<T extends Record<string, any>>(
-  action: T,
-  vars: Record<string, any>
-): T {
-  if (!action || typeof action !== "object") return action;
-
-  // Shallow clone so we don't mutate the original reference
-  const out: Record<string, any> = { ...action };
-
-  // List of keys we know to be string or contain strings
-  const stringKeys = [
-    "exist",
-    "getText",
-    "click",
-    "hover",
-    "press",
-    "loc",
-    "root",
-    "parent",
-  ];
-  const nestedStringKeys = [
-    ["expectUrl", "equals"],
-    ["expectUrl", "contains"],
-    ["expectText", "equals"],
-    ["expectText", "contains"],
-    ["screenshot", "path"],
-    ["select", "value"], // could be string or string[]
-    ["select", "label"], // idem
-    ["upload"], // could be string or string[]
-  ];
-
-  for (const k of stringKeys) {
-    if (typeof out[k] === "string") out[k] = interpolateTokens(out[k], vars);
-  }
-
-  // type / typeSlow can be dynamic via resolveDynamic, but still interpolate first
-  for (const k of ["type", "typeSlow"]) {
-    if (typeof out[k] === "string") out[k] = interpolateTokens(out[k], vars);
-  }
-
-  for (const path of nestedStringKeys) {
-    const [a, b] = path;
-    if (out[a] && typeof out[a] === "object" && typeof out[a][b] === "string") {
-      out[a] = { ...out[a], [b]: interpolateTokens(out[a][b], vars) };
-    } else if (a === "upload" && typeof out[a] === "string") {
-      out[a] = interpolateTokens(out[a], vars);
-    } else if (a === "select" && out[a] && typeof out[a] === "object") {
-      // value/label may be string|string[]
-      if (typeof out[a].value === "string")
-        out[a].value = interpolateTokens(out[a].value, vars);
-      if (Array.isArray(out[a].value))
-        out[a].value = out[a].value.map((v: any) =>
-          typeof v === "string" ? interpolateTokens(v, vars) : v
-        );
-      if (typeof out[a].label === "string")
-        out[a].label = interpolateTokens(out[a].label, vars);
-      if (Array.isArray(out[a].label))
-        out[a].label = out[a].label.map((v: any) =>
-          typeof v === "string" ? interpolateTokens(v, vars) : v
-        );
-    }
-  }
-
-  return out as T;
-}
-
-/* ----------------------- NEW: core action executor --------------------
-   We isolate action processing to reuse it in "forEach".
------------------------------------------------------------------------- */
+/* ===================== Core executor ===================== */
 async function processAction(
   page: Page,
-  value: TestCase & { run?: string },
+  value: any,
   actionRaw: any,
   vars: Record<string, any>,
   pluginFns: any,
@@ -326,100 +256,44 @@ async function processAction(
   baseScope?: Page | FrameLocator | Locator,
   memo?: { lastTypedText?: string; lastGetText?: string }
 ) {
-  // Interpolate fields with current vars snapshot
-  const action = interpolateAction(actionRaw, vars);
-
-  // Build scope (optionally starting from baseScope)
-  const scope = await buildScope(page, action, value.context, baseScope);
-
-  // Locator factories
-  const makeLocator = (raw: string): Locator =>
-    makeLocatorFromScope(scope, raw, action, value.context);
-
-  const makeLocatorUnindexed = (raw: string): Locator =>
-    makeLocatorFromScope(scope, raw, undefined, undefined, true);
-
-  if ((action as any).route) {
-    const r: any = (action as any).route;
-
-    // Unroute by pattern
-    if (r.unroute) {
-      const patt = interpolateTokens(String(r.unroute), vars);
-      await page.unroute(patt);
-    }
-
-    // Block patterns (string or array)
-    if (Array.isArray(r.block)) {
-      for (const patternRaw of r.block) {
-        const pattern = interpolateTokens(String(patternRaw), vars);
-        await page.route(pattern, (route) => route.abort());
-      }
-    } else if (typeof r.block === "string") {
-      const pattern = interpolateTokens(String(r.block), vars);
-      await page.route(pattern, (route) => route.abort());
-    }
-
-    // Mock a single pattern
-    if (r.url && r.mock) {
-      const urlPattern = interpolateTokens(String(r.url), vars);
-      const mock = { ...r.mock };
-
-      // Interpolate possible string fields
-      if (typeof mock.body === "string")
-        mock.body = interpolateTokens(mock.body, vars);
-      if (mock.headers) {
-        for (const [k, v] of Object.entries(mock.headers)) {
-          if (typeof v === "string")
-            (mock.headers as any)[k] = interpolateTokens(v, vars);
-        }
-      }
-      await page.route(urlPattern, async (route) => {
-        const headers = mock.headers ?? {};
-        if (mock.json !== undefined) {
-          await route.fulfill({
-            status: mock.status ?? 200,
-            headers: {
-              "content-type": "application/json",
-              ...headers,
-            },
-            body: JSON.stringify(mock.json),
-          });
-        } else {
-          await route.fulfill({
-            status: mock.status ?? 200,
-            headers,
-            body: mock.body ?? "",
-          });
-        }
-      });
-    }
-    // route action is self-contained
-  }
-
-  /**
-   * ACTION-LEVEL "run" → vars.resultFunc
-   */
-  if ((action as any).run) {
+  // --- RUN PRIMEIRO (antes de interpolar), com suporte a `as` e fallback em resultFunc ---
+  if ((actionRaw as any).run) {
     if (!pluginFns) {
       throw new Error(
         `This action uses "run" but RunPluginFunctions was not found. ` +
-          `Create help/plugin-fns.ts exporting class RunPluginFunctions, or pass opts.functionsPath.`
+          `Create help/plugin-func.ts exporting class RunPluginFunctions, or pass opts.functionsPath.`
       );
     }
-    const fnName = String((action as any).run).trim();
+    const fnName = String((actionRaw as any).run).trim();
     const fn = pluginFns[fnName];
     if (typeof fn !== "function") {
       throw new Error(`RunPluginFunctions does not have a method "${fnName}"`);
     }
     const out = fn.call(pluginFns);
-    vars.resultFunc = out && typeof out.then === "function" ? await out : out;
-    return; // only run
+    const result = out && typeof out.then === "function" ? await out : out;
+
+    const asKey = String((actionRaw as any).as ?? "resultFunc");
+    vars[asKey] = result;
+    if (asKey !== "resultFunc") vars.resultFunc = result;
+
+    const moreKeys = Object.keys(actionRaw).filter(
+      (k) => k !== "run" && k !== "as"
+    );
+    if (moreKeys.length === 0) return;
   }
 
-  /**
-   * EXIST gate — soft existence check.
-   * If NOT found → log and skip the rest of THIS action object.
-   */
+  // --- Interpolar agora (após run), para {resultFunc} / {alias} funcionarem ---
+  const action = JSON.parse(JSON.stringify(actionRaw), (_k, v) =>
+    typeof v === "string" ? interpolateTokens(v, vars) : v
+  );
+
+  const scope = await buildScope(page, action, value.context, baseScope);
+  const makeLocator = (raw: string): Locator =>
+    makeLocatorFromScope(scope, raw, action, value.context);
+  const makeLocatorUnindexed = (raw: string): Locator =>
+    makeLocatorFromScope(scope, raw, undefined, undefined, true);
+
+  /* exist (gate) */
   if ((action as any).exist) {
     const raw = String((action as any).exist).trim();
     const base = makeLocatorUnindexed(raw);
@@ -429,32 +303,22 @@ async function processAction(
     } catch {
       found = false;
     }
-    if (!found) {
-      const kind = isSelector(raw) ? "selector" : "text";
-      console.log(`${kind} not exist [${raw}]`);
-      return;
-    }
+    if (!found) return;
   }
 
-  // === NEW: forEach =====================================================
-  // Iterate all matched items and execute nested "actions" inside each item's scope.
-  // Shape: { "forEach": { "items": "<selector or text>", "actions": [ ... ] } }
+  /* forEach */
   if ((action as any).forEach && typeof (action as any).forEach === "object") {
     const fe = (action as any).forEach;
-    const itemsSel: string = interpolateTokens(
-      String(fe.items ?? ""),
-      vars
-    ).trim();
+    const itemsSel: string = String(fe.items ?? "").trim();
     if (!itemsSel) throw new Error(`forEach needs "items" selector/text.`);
     const itemBase = makeLocatorUnindexed(itemsSel);
     const count = await itemBase.count();
     for (let i = 0; i < count; i++) {
       const item = itemBase.nth(i);
-      // Scroll item into view to stabilize interactions
       try {
         await item.scrollIntoViewIfNeeded();
       } catch {}
-      const itemMemo = { ...(memo ?? {}) }; // isolate per item
+      const itemMemo = { ...(memo ?? {}) };
       if (Array.isArray(fe.actions)) {
         for (const sub of fe.actions) {
           await processAction(
@@ -472,48 +336,46 @@ async function processAction(
     }
   }
 
-  // === GET TEXT =========================================================
+  /* getText */
   if ((action as any).getText) {
     const raw = String((action as any).getText).trim();
     const loc = makeLocator(raw);
     const text = await loc.textContent();
-    console.log(`[getText] "${raw}" =>`, text);
     if (memo) memo.lastGetText = text ?? undefined;
+    vars.lastGetText = memo?.lastGetText;
   }
 
-  // === TYPE SLOW (pressSequentially) ===================================
-  if (typeof (action as any).typeSlow === "string") {
-    const text = await resolveDynamic((action as any).typeSlow);
-    const targetRaw =
-      (action as any).loc ??
-      (isSelector((action as any).click ?? "")
-        ? (action as any).click!
-        : undefined);
-    if (!targetRaw) {
-      throw new Error(`This action needs a target for typeSlow.`);
-    }
+  /* type / typeSlow — usa seu resolveDynamic (faker, date(...), etc.) */
+  if (
+    typeof (action as any).typeSlow === "string" ||
+    typeof (action as any).type === "string"
+  ) {
+    const rawText = (action as any).typeSlow ?? (action as any).type;
+    const text = await resolveDynamic(String(rawText));
+    const tIsSlow = (action as any).typeSlow != null;
+
+    let targetRaw: string | undefined = (action as any).loc;
+    if (!targetRaw && isSelector((action as any).click))
+      targetRaw = (action as any).click;
+    if (!targetRaw)
+      throw new Error(
+        `This action needs a selector target for ${
+          tIsSlow ? "typeSlow" : "type"
+        }. Use "loc" or "click" (selector).`
+      );
+
     const loc = makeLocator(targetRaw);
-    await loc.fill("");
-    await loc.pressSequentially(text, { delay: 300 });
-    if (memo) memo.lastTypedText = text;
-  }
-  // === TYPE FAST (fill) =================================================
-  else if (typeof (action as any).type === "string") {
-    const text = await resolveDynamic((action as any).type);
-    const targetRaw =
-      (action as any).loc ??
-      (isSelector((action as any).click ?? "")
-        ? (action as any).click!
-        : undefined);
-    if (!targetRaw) {
-      throw new Error(`This action needs a target for type.`);
+    if (tIsSlow) {
+      await loc.fill("");
+      await loc.pressSequentially(String(text), { delay: 300 });
+    } else {
+      await loc.fill(String(text));
     }
-    const loc = makeLocator(targetRaw);
-    await loc.fill(text);
-    if (memo) memo.lastTypedText = text;
+    if (memo) memo.lastTypedText = String(text);
+    vars.lastTypedText = memo?.lastTypedText;
   }
 
-  // === CLICK ============================================================
+  /* click */
   if ((action as any).click) {
     const c = String((action as any).click).trim();
     const typed = memo?.lastTypedText;
@@ -523,38 +385,30 @@ async function processAction(
       const prefix = m[1].trim();
       if (!typed) throw new Error(`click "${c}" used but no prior typed text.`);
       if (prefix) {
-        let locator = makeLocator(`${prefix} *:has-text("${typed}")`);
-        try {
-          await locator.click();
-        } catch {}
+        const locator = makeLocator(`${prefix} *:has-text("${typed}")`);
+        await locator.click().catch(() => {});
       } else {
-        let locator = makeLocator(typed);
-        try {
-          await locator.click();
-        } catch {}
+        const locator = makeLocator(typed);
+        await locator.click().catch(() => {});
       }
     } else if (c === "{type}") {
       if (!typed)
         throw new Error(`click "{type}" used but no prior typed text.`);
-      let locator = makeLocator(typed);
-      try {
-        await locator.click();
-      } catch {}
+      const locator = makeLocator(typed);
+      await locator.click().catch(() => {});
     } else {
-      let locator = makeLocator(c);
-      try {
-        await locator.click();
-      } catch {}
+      const locator = makeLocator(c);
+      await locator.click().catch(() => {});
     }
   }
 
-  // === HOVER ============================================================
+  /* hover */
   if ((action as any).hover) {
     const loc = makeLocator(String((action as any).hover).trim());
     await loc.hover();
   }
 
-  // === PRESS (locator or page keyboard) =================================
+  /* press */
   if ((action as any).press) {
     if ((action as any).loc) {
       const loc = makeLocator((action as any).loc);
@@ -567,38 +421,45 @@ async function processAction(
     }
   }
 
-  // === CHECK / UNCHECK ==================================================
-  if ((action as any).check !== undefined) {
-    await handleCheckLikeScoped(
-      scope,
-      page,
-      (action as any).check,
-      true,
-      action,
-      value.context
-    );
+  /* check / uncheck */
+  async function handleCheckLike(raw: any, makeChecked: boolean) {
+    let targetRaw: string | undefined;
+    if (typeof raw === "string") targetRaw = raw;
+    else if (raw && typeof raw === "object" && "loc" in raw)
+      targetRaw = raw.loc;
+    if (!targetRaw) {
+      const legacy = (ctx?: { loc?: string; click?: string }) => {
+        if (ctx?.loc) return ctx.loc;
+        if (ctx?.click && isSelector(ctx?.click as any))
+          return ctx.click as any;
+        return undefined;
+      };
+      targetRaw = legacy(action as any) ?? legacy(value.context as any);
+    }
+    if (!targetRaw)
+      throw new Error(
+        `${
+          makeChecked ? "check" : "uncheck"
+        } needs a target. Use loc or click selector.`
+      );
+    const loc = makeLocator(targetRaw);
+    if (makeChecked) await loc.check();
+    else await loc.uncheck();
   }
-  if ((action as any).uncheck !== undefined) {
-    await handleCheckLikeScoped(
-      scope,
-      page,
-      (action as any).uncheck,
-      false,
-      action,
-      value.context
-    );
-  }
+  if ((action as any).check !== undefined)
+    await handleCheckLike((action as any).check, true);
+  if ((action as any).uncheck !== undefined)
+    await handleCheckLike((action as any).uncheck, false);
 
-  // === SELECT ===========================================================
+  /* select */
   if ((action as any).select) {
     const rawTarget =
       (action as any).loc ??
       (isSelector((action as any).click ?? "")
         ? (action as any).click!
         : undefined);
-    if (!rawTarget) {
+    if (!rawTarget)
       throw new Error(`select needs 'loc' or 'click' (selector).`);
-    }
     const loc = makeLocator(rawTarget);
     const sel = (action as any).select;
     if ("value" in sel) await loc.selectOption(sel.value as any);
@@ -606,21 +467,7 @@ async function processAction(
     else if ("index" in sel) await loc.selectOption(sel.index as any);
   }
 
-  // === UPLOAD ===========================================================
-  if ((action as any).upload) {
-    const rawTarget =
-      (action as any).loc ??
-      (isSelector((action as any).click ?? "")
-        ? (action as any).click!
-        : undefined);
-    if (!rawTarget) {
-      throw new Error(`upload needs 'loc' or 'click' (selector).`);
-    }
-    const loc = makeLocator(rawTarget);
-    await loc.setInputFiles((action as any).upload as any);
-  }
-
-  // === EXPECT TEXT (with or without target) =============================
+  /* expectText */
   if ((action as any).expectText !== undefined) {
     const rawTarget =
       (action as any).loc ??
@@ -639,12 +486,6 @@ async function processAction(
     ) {
       throw new Error(`expectText needs one of: { equals | contains }.`);
     }
-    // interpolate expected text too
-    if (typeof et.equals === "string")
-      et.equals = interpolateTokens(et.equals, vars);
-    if (typeof et.contains === "string")
-      et.contains = interpolateTokens(et.contains, vars);
-
     const loc = rawTarget ? makeLocator(rawTarget) : undefined;
     if (loc) {
       if (et.equals !== undefined) {
@@ -658,9 +499,7 @@ async function processAction(
       if (et.equals !== undefined) {
         await expect(
           page.getByText(et.equals as any, { exact: true })
-        ).toBeVisible({
-          timeout: et.timeout,
-        });
+        ).toBeVisible({ timeout: et.timeout });
       } else {
         await expect(page.locator("body")).toContainText(et.contains as any, {
           timeout: et.timeout,
@@ -669,7 +508,7 @@ async function processAction(
     }
   }
 
-  // === EXPECT VISIBLE ===================================================
+  /* expectVisible */
   if ("expectVisible" in (action as any)) {
     let rawTarget: string | undefined;
     let to: number | undefined;
@@ -687,56 +526,32 @@ async function processAction(
           : undefined);
       to = (action as any).expectVisible.timeout ?? (action as any).timeout;
     }
-    if (!rawTarget) {
+    if (!rawTarget)
       throw new Error(
         `expectVisible needs a target: use string or object form with loc/click.`
       );
-    }
     const loc = makeLocator(rawTarget);
     await expect(loc).toBeVisible({ timeout: to });
   }
 
-  // === NEW: EXPECT VALUE ================================================
-  // Shape: { "expectValue": { "loc": "<selector>", "equals"?: string, "contains"?: string, "timeout"?: number } }
+  /* expectValue */
   if ((action as any).expectValue) {
     const ev = (action as any).expectValue;
-    if (!ev || typeof ev !== "object" || !ev.loc) {
+    if (!ev || typeof ev !== "object" || !ev.loc)
       throw new Error(`expectValue needs { loc, equals|contains }`);
-    }
     const loc = makeLocator(String(ev.loc));
     if (ev.equals !== undefined) {
-      const eq =
-        typeof ev.equals === "string"
-          ? interpolateTokens(ev.equals, vars)
-          : ev.equals;
-      await expect(loc).toHaveValue(eq as any, { timeout: ev.timeout });
+      await expect(loc).toHaveValue(ev.equals as any, { timeout: ev.timeout });
     } else if (ev.contains !== undefined) {
-      const ct =
-        typeof ev.contains === "string"
-          ? interpolateTokens(ev.contains, vars)
-          : ev.contains;
       const v = await loc.inputValue();
-      // NOTE: expect for primitive strings is sync
-      expect(v).toContain(String(ct));
+      expect(v).toContain(String(ev.contains));
     } else {
       throw new Error(`expectValue requires either "equals" or "contains".`);
     }
   }
 
-  // === EXPECT URL (equals or contains) =================================
+  /* expectUrl */
   if ((action as any).expectUrl) {
-    if (typeof (action as any).expectUrl.equals === "string") {
-      (action as any).expectUrl.equals = interpolateTokens(
-        (action as any).expectUrl.equals,
-        vars
-      );
-    }
-    if (typeof (action as any).expectUrl.contains === "string") {
-      (action as any).expectUrl.contains = interpolateTokens(
-        (action as any).expectUrl.contains,
-        vars
-      );
-    }
     if ((action as any).expectUrl.equals !== undefined) {
       await expect(page).toHaveURL((action as any).expectUrl.equals as any, {
         timeout: (action as any).expectUrl.timeout,
@@ -744,22 +559,34 @@ async function processAction(
     } else {
       await expect(page).toHaveURL(
         new RegExp(escapeRegex((action as any).expectUrl.contains!)),
-        { timeout: (action as any).expectUrl.timeout }
+        {
+          timeout: (action as any).expectUrl.timeout,
+        }
       );
     }
   }
 
-  // === WAIT NETWORK REQUEST (existing) ==================================
+  /* waitRequest (compatível com seu JSON) */
   if ((action as any).waitRequest) {
-    await handleWaitRequest(page, (action as any).waitRequest);
+    const wr = (action as any).waitRequest as {
+      urlIncludes?: string;
+      status?: number;
+      timeout?: number;
+    };
+    const timeout = wr.timeout ?? 30000;
+    await page.waitForResponse(
+      (res) =>
+        (!wr.urlIncludes || res.url().includes(wr.urlIncludes)) &&
+        (wr.status ? res.status() === wr.status : true),
+      { timeout }
+    );
   }
 
-  // === NEW: WAIT RESPONSE (simple glob matcher) =========================
-  // Shape: { "waitResponse": { "url": "<glob>", "status"?: number, "bodyContains"?: string, "timeout"?: number } }
+  /* waitResponse (glob) */
   if ((action as any).waitResponse) {
     const wr = (action as any).waitResponse;
     const timeout = wr.timeout ?? 30000;
-    const urlGlob = interpolateTokens(String(wr.url), vars);
+    const urlGlob = String(wr.url);
     const re = globToRegExp(urlGlob);
     const resp = await page.waitForResponse(
       (res) =>
@@ -767,26 +594,18 @@ async function processAction(
       { timeout }
     );
     if (wr.bodyContains) {
-      const bodyContains = interpolateTokens(String(wr.bodyContains), vars);
       const body = await resp.text();
-      if (!body.includes(bodyContains)) {
+      if (!body.includes(String(wr.bodyContains))) {
         throw new Error(
-          `waitResponse matched URL but body didn't contain "${bodyContains}".`
+          `waitResponse matched URL but body didn't contain "${wr.bodyContains}".`
         );
       }
     }
   }
 
-  // === WAIT TIMEOUT (ms) ================================================
-  if ((action as any).wait) {
-    await page.waitForTimeout((action as any).wait);
-  }
+  /* wait / scrollTo / screenshot */
+  if ((action as any).wait) await page.waitForTimeout((action as any).wait);
 
-  // === NEW: SCROLL TO ===================================================
-  // Shapes:
-  // - { "scrollTo": "top" | "bottom" }
-  // - { "scrollTo": { "to": "<selector or text>" } }
-  // - { "scrollTo": { "x": number, "y": number, "behavior"?: "auto"|"smooth" } }
   if ((action as any).scrollTo) {
     const st = (action as any).scrollTo;
     if (typeof st === "string") {
@@ -814,7 +633,7 @@ async function processAction(
           [st.x ?? null, st.y ?? null, st.behavior ?? "auto"]
         );
       } else if (st.to) {
-        const target = interpolateTokens(String(st.to), vars);
+        const target = String(st.to);
         const loc = makeLocator(target);
         await loc.scrollIntoViewIfNeeded();
       } else {
@@ -823,14 +642,7 @@ async function processAction(
     }
   }
 
-  // === SCREENSHOT (page or target) =====================================
   if ((action as any).screenshot) {
-    if (typeof (action as any).screenshot.path === "string") {
-      (action as any).screenshot.path = interpolateTokens(
-        (action as any).screenshot.path,
-        vars
-      );
-    }
     const rawTarget =
       (action as any).loc ??
       (isSelector((action as any).click ?? "")
@@ -851,23 +663,72 @@ async function processAction(
   }
 }
 
-/* ----------------------------- Main ---------------------------------- */
-/**
- * Builds a serial describe() suite from a JSON file and wires each case to Playwright.
- * One browser context and page are reused per file (beforeAll/afterAll).
- */
+/* ===================== run JSON inline (suite.before) ===================== */
+async function runJsonFileInline(
+  jsonAbsPath: string,
+  page: Page,
+  expect: typeof import("@playwright/test").expect,
+  pluginFns: any,
+  baseURL?: string,
+  opts?: ExecOpts,
+  inheritedVars?: Record<string, any>
+) {
+  const rc: any = loadJSON(jsonAbsPath);
+  const describeBlock = rc?.describe ?? {};
+  const suiteUrl: string | undefined = describeBlock?.url;
+
+  const varsFromParent = { ...(inheritedVars ?? {}) };
+
+  for (const [k, v] of Object.entries(describeBlock)) {
+    if (k === "text" || k === "url" || k === "before") continue;
+    const value: any = (v ?? {}) as any;
+
+    const targetUrl = resolveUrlForCase(
+      value.url,
+      suiteUrl,
+      varsFromParent,
+      baseURL,
+      opts?.baseURLOverride,
+      value.title
+    );
+    if (targetUrl) await page.goto(targetUrl);
+
+    const actions = Array.isArray(value.actions) ? value.actions : [];
+    for (const actionRaw of actions) {
+      await processAction(
+        page,
+        value,
+        actionRaw,
+        varsFromParent,
+        pluginFns,
+        expect,
+        undefined,
+        {}
+      );
+    }
+  }
+}
+
+/* ===================== Main ===================== */
 export function createDescribeForFile(
   filePath: string,
-  testRef: typeof import("@playwright/test").test,
+  testRef: TestType<any, any>,
   opts?: ExecOpts
 ) {
-  const { describeText, cases } = resolveCasesChain(filePath);
-  const expect = testRef.expect;
+  const rc: any = loadJSON(filePath);
+  const block = rc?.describe ?? {};
+  const describeText: string = block?.text || path.basename(filePath);
+  const suiteUrl: string | undefined = block?.url;
+  const suiteBefore = block?.before as string | string[] | undefined;
+
+  const entries = Object.entries(block).filter(
+    ([k]) => !["text", "url", "before"].includes(k)
+  );
 
   testRef.describe.serial(describeText, () => {
-    let context: BrowserContext;
-    let page: Page;
-    let pluginFns: any; // Instance of RunPluginFunctions (if found)
+    let context!: BrowserContext;
+    let page!: Page;
+    let pluginFns: any;
 
     testRef.beforeAll(async ({ browser }) => {
       context = await browser.newContext();
@@ -880,70 +741,67 @@ export function createDescribeForFile(
       await context?.close();
     });
 
-    for (const [caseKey, rawCase] of cases) {
-      const value: TestCase & { run?: string } = (rawCase ?? {}) as any;
-      if (!value.title || typeof value.title !== "string") {
-        value.title = `Tests in feature ${caseKey}`;
-      }
+    if (entries.length === 0) {
+      testRef("noop: JSON has no cases (only metadata?)", async () => {
+        throw new Error(
+          `[runner] JSON has no test cases. keys=${JSON.stringify(
+            Object.keys(block)
+          )}`
+        );
+      });
+      return;
+    }
 
-      testRef(value.title, async ({ baseURL }) => {
-        // Per-case variable bag. Persist across actions of this case.
+    for (const [caseKey, rawCase] of entries) {
+      const value: any = (rawCase ?? {}) as any;
+      const title =
+        typeof value.title === "string" && value.title.trim()
+          ? value.title
+          : `Tests in feature ${caseKey}`;
+
+      testRef(title, async () => {
+        const expect = testRef.expect;
+        const baseURL = testRef.info().project.use.baseURL as
+          | string
+          | undefined;
+
         const vars: Record<string, any> = {};
-        // Per-case memo (typed text, last captured text, etc.)
         const memo: { lastTypedText?: string; lastGetText?: string } = {};
 
-        // ---- Case-level "run" (before URL resolution) ----
-        if (typeof (value as any).run === "string") {
-          if (!pluginFns) {
-            throw new Error(
-              `Case "${value.title}" uses "run" but RunPluginFunctions was not found. ` +
-                `Create help/plugin-fns.ts exporting class RunPluginFunctions, or pass opts.functionsPath.`
+        // BEFORE (suite-level)
+        if (suiteBefore) {
+          const files = Array.isArray(suiteBefore)
+            ? suiteBefore
+            : [suiteBefore];
+          for (const f of files) {
+            const absPath = path.isAbsolute(f)
+              ? f
+              : path.resolve(path.dirname(filePath), f);
+            await runJsonFileInline(
+              absPath,
+              page,
+              expect,
+              pluginFns,
+              baseURL,
+              opts,
+              vars
             );
           }
-          const fnName = (value as any).run.trim();
-          const fn = pluginFns[fnName];
-          if (typeof fn !== "function") {
-            throw new Error(
-              `RunPluginFunctions does not have a method "${fnName}"`
-            );
-          }
-          const out = fn.call(pluginFns);
-          vars.resultFunc =
-            out && typeof out.then === "function" ? await out : out;
         }
 
-        // ---- Navigate if case defines "url" (supports "", relative, absolute). ----
-        if (value.url !== undefined) {
-          const rawUrl = interpolateTokens(value.url ?? "", vars) as string;
-          const trimmed = rawUrl.trim();
-          const effectiveBase = opts?.baseURLOverride ?? baseURL;
-          let targetUrl: string;
-          if (!trimmed) {
-            if (!effectiveBase) {
-              throw new Error(
-                `No baseURL to open when url is empty in "${value.title}".`
-              );
-            }
-            targetUrl = effectiveBase;
-          } else if (trimmed.startsWith("http")) {
-            targetUrl = trimmed;
-          } else {
-            if (!effectiveBase) {
-              throw new Error(
-                `Relative url "${trimmed}" without baseURL in "${value.title}".`
-              );
-            }
-            targetUrl = new URL(trimmed, effectiveBase).toString();
-          }
-          await page.goto(targetUrl);
-        }
+        // Navegação: prioridade case.url -> describe.url
+        const targetUrl = resolveUrlForCase(
+          value.url,
+          suiteUrl,
+          vars,
+          baseURL,
+          opts?.baseURLOverride,
+          title
+        );
+        if (targetUrl) await page.goto(targetUrl);
 
-        if (!value.actions?.length) {
-          console.warn(`⚠️ Test "${value.title}" has no actions — skipping.`);
-          return;
-        }
-
-        // Execute all actions (re-using the unified executor)
+        // Actions
+        if (!value.actions?.length) return;
         for (const actionRaw of value.actions) {
           await processAction(
             page,
@@ -959,49 +817,4 @@ export function createDescribeForFile(
       });
     }
   });
-}
-
-/* ===================== Scoped check/uncheck ===================== */
-/**
- * Scoping-aware helper for check/uncheck.
- * Accepts:
- *  - string
- *  - { loc: string }
- *  - true (legacy resolution via action/case's loc or click when selector)
- */
-async function handleCheckLikeScoped(
-  scope: Page | FrameLocator | Locator,
-  page: Page,
-  raw: string | { loc: string } | true | undefined,
-  makeChecked: boolean,
-  actionCtx?: LocatorContext,
-  caseCtx?: LocatorContext
-) {
-  let targetRaw: string | undefined;
-  if (typeof raw === "string") {
-    targetRaw = raw;
-  } else if (raw && typeof raw === "object" && "loc" in raw) {
-    targetRaw = raw.loc;
-  }
-  if (!targetRaw) {
-    const legacy = (ctx?: { loc?: string; click?: string }) => {
-      if (ctx?.loc) return ctx.loc;
-      if (ctx?.click && isSelector(ctx?.click as any)) return ctx.click as any;
-      return undefined;
-    };
-    targetRaw = legacy(actionCtx as any) ?? legacy(caseCtx as any);
-  }
-  if (!targetRaw) {
-    throw new Error(
-      `${
-        makeChecked ? "check" : "uncheck"
-      } needs a target. Use loc or click selector.`
-    );
-  }
-  const loc = makeLocatorFromScope(scope, targetRaw, actionCtx, caseCtx);
-  if (makeChecked) {
-    await loc.check();
-  } else {
-    await loc.uncheck();
-  }
 }
