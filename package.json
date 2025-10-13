@@ -1,6 +1,6 @@
 {
   "name": "playwright-plugin-web-from-json",
-  "version": "1.0.12",
+  "version": "1.0.13",
   "description": "Generate tests Web from JSONs",
   "main": "./dist/src/index.js",
   "module": "./dist/src/index.js",
