@@ -10,12 +10,12 @@
 
 # ✨ Playwright Web-from-JSON
 
-
 ```cmd
 npm init --y
 npm init playwright
 npm i playwright-plugin-web-from-json
 ```
+
 ---
 
 ### Using `url`
@@ -459,6 +459,166 @@ For each action below you’ll see: **JSON shape**, **Playwright mapping**, and 
 
 ```json
 { "run": "nowISO" }
+```
+
+> Create new functions in `help/plugin-func.ts`:
+
+```jsonc
+{
+  "describe": {
+    "text": "Case-level run",
+    "url": "http://127.0.0.1:5500/html/index.html",
+
+    "fill-name-with-userEmail": {
+      "title": "Case run → type",
+      "run": "userEmail",
+      "actions": [
+        { "click": "Typing & Keys" },
+        { "loc": "#name", "type": "{resultFunc}" }
+      ]
+    },
+
+    "fill-using-alias": {
+      "title": "Case run with alias",
+      "run": "hello",
+      "as": "user",
+      "actions": [
+        { "click": "Typing & Keys" },
+        { "loc": "#name", "typeSlow": "{user.greeting}" },
+        { "loc": "#email", "type": "{resultFunc.email}" }
+      ]
+    }
+  }
+}
+```
+
+```ts
+export class RunPluginFunctions {
+  hello() {
+    return { greeting: "hello", email: "qa@example.com" };
+  }
+  userEmail() {
+    return "user_" + Date.now() + "@example.com";
+  }
+}
+```
+
+```jsonc
+{
+  "describe": {
+    "text": "Action-level run (inline)",
+    "url": "http://127.0.0.1:5500/html/index.html",
+
+    "inline-run-and-type": {
+      "title": "run + type no mesmo action",
+      "actions": [
+        { "click": "Typing & Keys" },
+        { "run": "userEmail", "as": "user", "loc": "#email", "type": "{user}" }
+      ]
+    }
+  }
+}
+```
+
+```jsonc
+{
+  "describe": {
+    "text": "Async run",
+    "url": "http://127.0.0.1:5500/html/index.html",
+
+    "async-then-use": {
+      "title": "await run, depois usar campos",
+      "actions": [
+        { "run": "fetchProfile", "as": "profile" },
+        { "click": "Typing & Keys" },
+        { "loc": "#name", "type": "{profile.name}" },
+        { "loc": "#email", "type": "{profile.email}" }
+      ]
+    }
+  }
+}
+```
+
+```ts
+export class RunPluginFunctions {
+  async fetchProfile() {
+    // simulação de IO
+    await new Promise((r) => setTimeout(r, 300));
+    return { name: "Ada Lovelace", email: "ada@example.com" };
+  }
+}
+```
+
+```jsonc
+{
+  "describe": {
+    "text": "Simple return types",
+    "url": "http://127.0.0.1:5500/html/index.html",
+
+    "number-into-input": {
+      "title": "Número → string no input",
+      "actions": [
+        { "run": "randomCode" },
+        { "click": "Typing & Keys" },
+        { "loc": "#name", "type": "{resultFunc}" }
+      ]
+    },
+
+    "boolean-into-branch": {
+      "title": "Booleano e expectText",
+      "actions": [
+        { "run": "featureFlag", "as": "flag" },
+        { "click": "Clicks & Visibility" },
+        { "click": "Make toast visible" },
+        { "expectText": { "contains": "OK" }, "loc": "#selector-result" }
+      ]
+    }
+  }
+}
+```
+
+```ts
+export class RunPluginFunctions {
+  randomCode() {
+    return Math.floor(Math.random() * 10000);
+  } // number
+  featureFlag() {
+    return true;
+  } // boolean (vira "true"/"false" quando interpolado)
+}
+```
+
+```jsonc
+{
+  "describe": {
+    "text": "Object shape",
+    "url": "http://127.0.0.1:5500/html/index.html",
+
+    "deep-object": {
+      "title": "Usar caminhos do objeto",
+      "actions": [
+        { "run": "buildUser", "as": "user" },
+        { "click": "Typing & Keys" },
+        { "loc": "#name", "type": "{user.profile.fullName}" },
+        { "loc": "#email", "type": "{user.contacts.primary}" }
+      ]
+    }
+  }
+}
+```
+
+```ts
+export class RunPluginFunctions {
+  buildUser() {
+    return {
+      profile: { fullName: "Grace Hopper" },
+      contacts: {
+        primary: "grace@navy.mil",
+        backup: "grace.hopper@example.com",
+      },
+    };
+  }
+}
 ```
 
 `example in JSON Fixtures/plugin-examplo-auto.json`
