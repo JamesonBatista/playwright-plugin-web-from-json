@@ -52,6 +52,86 @@ npm install playwright-plugin-web-from-json
 
 ---
 
+<!-- ✅ Paste this single block into your README.md -->
+
+<h1>Files created by the setup and how to view the Scenario Lab</h1>
+
+<p>
+  The script <code>scripts/setup.ts</code> created and/or populated folders and files in your project so you can start using the plugin right away — including an HTML Scenario Lab to validate runner actions.
+</p>
+
+<h2>Where everything is</h2>
+
+<pre><code>.
+├─ Fixtures/
+│  ├─ playwright-plugin-web-from-json.json
+│  ├─ plugin-example-voe-latam.json
+│  └─ plugin-example-auto.json
+│
+├─ tests/                (or e2e/, if it already exists)
+│  └─ json-plugin.spec.ts
+│
+├─ .vscode/
+│  └─ plugin.code-snippets
+│
+├─ html/
+│  └─ index.html         ← Scenario Lab (static page to exercise actions/assertions)
+│
+└─ help/
+   └─ plugin-func.ts     ← Implements class RunPluginFunctions (methods for "run")
+</code></pre>
+
+<h3>Quick description</h3>
+<ul>
+  <li><strong>Fixtures/</strong>: ready-to-run JSON suites for the runner.</li>
+  <li><strong>tests/json-plugin.spec.ts</strong>: spec that calls <code>generateTestsFromJson(...)</code> pointing to <code>Fixtures/</code>.</li>
+  <li><strong>.vscode/plugin.code-snippets</strong>: VS Code snippets to speed up authoring JSON.</li>
+  <li><strong>html/index.html</strong>: “Scenario Lab” page to interact locally (clicks, inputs, iframes, etc.).</li>
+  <li><strong>help/plugin-func.ts</strong>: <code>RunPluginFunctions</code> sample implementation used by <code>"run"</code> in your JSON.</li>
+</ul>
+
+<hr />
+
+<h2>How to open the Scenario Lab (<code>html/index.html</code>) in the browser</h2>
+
+<p>To serve and interact with the page without a backend, use the <strong>Live Server</strong> extension in VS Code:</p>
+<ol>
+  <li>Open the project in <strong>VS Code</strong>.</li>
+  <li>Install the <strong>Live Server</strong> extension (author: Ritwick Dey).
+    <ul>
+      <li><em>View → Extensions</em> (or <code>Ctrl+Shift+X</code> / <code>Cmd+Shift+X</code>)</li>
+      <li>Search for <strong>Live Server</strong> and click <strong>Install</strong>.</li>
+    </ul>
+  </li>
+  <li>In the VS Code <strong>Explorer</strong>, navigate to the <strong><code>html/</code></strong> folder.</li>
+  <li><strong>Right-click</strong> on <strong><code>index.html</code></strong> → choose <em>Open with Live Server</em>.</li>
+  <li>Your default browser will open automatically (commonly at <code>http://127.0.0.1:5500</code> or similar).</li>
+</ol>
+
+<p><strong>Tip:</strong> keep this tab open while running tests; it’s a stable page to exercise actions like <code>click</code>, <code>type</code>, <code>typeSlow</code>, <code>hover</code>, <code>press</code>, <code>check</code>, <code>select</code>, <code>upload</code>, <code>expectVisible</code>, <code>expectText</code>, <code>expectUrl</code>, <code>waitRequest</code>, <code>screenshot</code>, <code>forEach</code>, <code>scrollTo</code>, <code>expectValue</code>, and <code>route</code>.</p>
+
+<hr />
+
+<h2>How to run the Playwright tests (using the JSONs)</h2>
+
+<pre><code>npx playwright test
+</code></pre>
+
+<ul>
+  <li>The file <code>tests/json-plugin.spec.ts</code> already points to the <strong>Fixtures/</strong> folder.</li>
+  <li>Adjust <strong><code>baseURLOverride</code></strong> inside <code>tests/json-plugin.spec.ts</code> if you want to target a specific host.</li>
+</ul>
+
+<hr />
+
+<h2>Notes</h2>
+<ul>
+  <li>The setup <strong>does not overwrite</strong> existing files; if something already exists, it logs: “Already exists (not overwritten)”.</li>
+  <li>The JSON examples in <strong>Fixtures/</strong> are starting points — edit as needed for your app.</li>
+</ul>
+
+---
+
 ## 🧱 JSON Shape (correct!)
 
 The **ONLY valid** top-level key is `describe`. Inside it:
