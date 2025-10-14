@@ -65,7 +65,7 @@ npm i playwright-plugin-web-from-json
 {
   "describe": {
     "text": "Context + Indexing",
-
+    "url": "https:....",
     "users": {
       "title": "Open the 3rd user's details from nested nav",
       "context": {
@@ -185,6 +185,9 @@ For each action below you’ll see: **JSON shape**, **Playwright mapping**, and 
 
 ```json
 { "check": { "loc": "#terms" } }
+
+{ "check": "#terms" }
+
 ```
 
 ```json
@@ -294,6 +297,7 @@ For each action below you’ll see: **JSON shape**, **Playwright mapping**, and 
 {
   "describe": {
     "text": "forEach demo",
+    "url": "/produts",
     "rows": {
       "title": "Open each row details and close",
       "actions": [
@@ -321,6 +325,7 @@ For each action below you’ll see: **JSON shape**, **Playwright mapping**, and 
 {
   "describe": {
     "text": "forEach + context",
+    "url": "/products",
     "cards": {
       "title": "Click inner CTA per card",
       "actions": [
@@ -468,7 +473,6 @@ For each action below you’ll see: **JSON shape**, **Playwright mapping**, and 
   "describe": {
     "text": "Case-level run",
     "url": "http://127.0.0.1:5500/html/index.html",
-
     "fill-name-with-userEmail": {
       "title": "Case run → type",
       "run": "userEmail",
@@ -508,7 +512,6 @@ export class RunPluginFunctions {
   "describe": {
     "text": "Action-level run (inline)",
     "url": "http://127.0.0.1:5500/html/index.html",
-
     "inline-run-and-type": {
       "title": "run + type no mesmo action",
       "actions": [
@@ -525,7 +528,6 @@ export class RunPluginFunctions {
   "describe": {
     "text": "Async run",
     "url": "http://127.0.0.1:5500/html/index.html",
-
     "async-then-use": {
       "title": "await run, depois usar campos",
       "actions": [
@@ -554,7 +556,6 @@ export class RunPluginFunctions {
   "describe": {
     "text": "Simple return types",
     "url": "http://127.0.0.1:5500/html/index.html",
-
     "number-into-input": {
       "title": "Número → string no input",
       "actions": [
@@ -593,7 +594,6 @@ export class RunPluginFunctions {
   "describe": {
     "text": "Object shape",
     "url": "http://127.0.0.1:5500/html/index.html",
-
     "deep-object": {
       "title": "Usar caminhos do objeto",
       "actions": [
@@ -642,6 +642,11 @@ Specials available during a test:
 ```
 
 ```json
+{ "run": "genCPF", "as":"user_cpf" },
+{ "loc": "#cpf", "type": "{user_cpf}" }
+```
+
+```json
 { "screenshot": { "path": "shots/card-{__index}.png" } }
 ```
 
@@ -653,7 +658,7 @@ Specials available during a test:
 {
   "describe": {
     "text": "Catalog",
-
+    "url": "/products",
     "open-cards": {
       "title": "Open specific cards with indexing",
       "context": {
@@ -704,14 +709,3 @@ Specials available during a test:
 - `{"first": true, ...}` → overrides to `.first()` only for that action
 
 ---
-
-## ✅ Quick tips
-
-- Prefer robust selectors (data-testid, stable IDs).
-- Use `before` to sign-in/seed state.
-- Keep cases short; reuse actions through JSON building blocks.
-- Mock flaky APIs with `route` for deterministic runs.
-
----
-
-If you want, I can **merge this reference** back into your main README and export a single English file.
