@@ -1,8 +1,10 @@
-// utils.ts — CJS-safe dynamic import for @faker-js/faker
+// util.ts — tudo junto: seletor, import dinâmico faker (ESM/CJS-safe), parsing e resolveDynamic
 import { parseDynamicDateString } from "./generate";
 
-// util.ts
-const KNOWN_TAGS = new Set([
+/* =========================
+   1) utilidades de seletor
+   ========================= */
+const KNOWN_TAGS = new Set<string>([
   "a",
   "abbr",
   "address",
@@ -122,16 +124,7 @@ const KNOWN_TAGS = new Set([
   "text",
 ]);
 
-/**
- * Decide se `raw` é um seletor CSS:
- * - "css:<...>" => sempre seletor
- * - tag pura conhecida (ex: "input") => seletor
- * - começa com # . [ : > + ~ => seletor
- * - contém combinadores > + ~ => seletor
- * - tem padrão de pseudo-classe válido (a:hover, :nth-child, etc) => seletor
- * - tag com #id/.class/[attr] => seletor
- * Caso contrário => trata como TEXTO.
- */
+/** Decide se `raw` é seletor CSS (sua lógica original). */
 export function isSelector(raw: string): boolean {
   if (!raw) return false;
   const s = raw.trim();
@@ -139,43 +132,207 @@ export function isSelector(raw: string): boolean {
 
   if (s.startsWith("css:")) return true; // força seletor
   if (KNOWN_TAGS.has(s)) return true; // tag pura
-
-  if (/^[#.\[\]>+~]/.test(s)) return true; // início típico de CSS
-  if (/[>+~]/.test(s)) return true; // combinadores presentes
-
-  // pseudo-classe real: algo como "a:hover", ":nth-child", "div:has(...)" etc
-  if (/(^|[a-zA-Z0-9\)\]])\:[a-zA-Z-]+/.test(s)) return true;
-
-  // tag seguida de id/class/attr
-  if (/^[a-z][a-z0-9-]*(?:[#.][a-zA-Z0-9_-]+|\[.+\])/i.test(s)) return true;
-
-  // Se tem espaços e não bate com nada acima, trate como texto (ex: "Campo X:")
-  return false;
+  if (/^[#.\[\]>+~]/.test(s)) return true; // início típico
+  if (/[>+~]/.test(s)) return true; // combinadores
+  if (/(^|[a-zA-Z0-9\)\]])\:[a-zA-Z-]+/.test(s)) return true; // pseudo-classes
+  if (/^[a-z][a-z0-9-]*(?:[#.][a-zA-Z0-9_-]+|\[.+\])/i.test(s)) return true; // tag + id/class/attr
+  return false; // caso contrário, texto
 }
 
-/** import() blindado contra transpile para require() em builds CJS */
+/* ===========================================================
+   2) import dinâmico do faker (ESM) com compat CJS + cache
+   =========================================================== */
 const dynamicImport: (s: string) => Promise<any> = new Function(
   "s",
   "return import(s)"
 ) as any;
 
-/** cache para não importar faker repetidamente */
 let _fakerLoader: Promise<any> | null = null;
-async function getFaker(): Promise<any> {
+
+/** Carrega @faker-js/faker e permite locale/seed opcionais. */
+async function getFaker(opts?: {
+  locale?: string;
+  seed?: number | number[];
+  configure?: (faker: any) => void;
+}): Promise<any> {
   if (!_fakerLoader) {
     _fakerLoader = dynamicImport("@faker-js/faker").then((mod: any) => {
-      // v9/v8: export { faker }; algumas builds expõem default
-      return mod?.faker ?? mod?.default ?? mod;
+      // v10 ESM: export { faker }; alguns bundlers expõem default
+      const fk = mod?.faker ?? mod?.default ?? mod;
+      return fk;
     });
   }
-  return _fakerLoader;
+  const faker = await _fakerLoader;
+
+  if (opts?.locale) {
+    try {
+      faker.locale = opts.locale;
+    } catch {}
+  }
+  if (opts?.seed !== undefined) {
+    try {
+      faker.seed(opts.seed as any);
+    } catch {}
+  }
+  if (opts?.configure) {
+    try {
+      opts.configure(faker);
+    } catch {}
+  }
+  return faker;
 }
 
-/** Regex para "faker.algo()" ou "faker.mod.algo()" sem argumentos */
-const FAKER_CALL_RE = /^faker\.([a-zA-Z0-9_.]+)\(\s*\)\s*$/;
+/* ============================================
+   3) parsing de faker com argumentos seguros
+   ============================================ */
 
-/** Agora ASSÍNCRONA: resolve date(...) e faker.* sem require de ESM */
-export async function resolveDynamic(text: string): Promise<string> {
+/** faker.mod.fn(...args?) — com ou sem argumentos (whitespace/newlines ok) */
+const FAKER_CALL_RE = /^faker\.([a-zA-Z0-9_.]+)\(\s*(?<args>[\s\S]*?)\s*\)\s*$/;
+
+/**
+ * Divide argumentos top-level respeitando {}, [], (), "" e ''.
+ * Ex.: a, {x:1,y:[2,3]}, "b,c", 'd,e' => ["a","{x:1,y:[2,3]}","\"b,c\"","'d,e'"]
+ */
+function splitTopLevelArgs(src: string): string[] {
+  const out: string[] = [];
+  if (!src) return out;
+
+  let i = 0,
+    start = 0;
+  let dCurly = 0,
+    dSquare = 0,
+    dParen = 0;
+  let inSingle = false,
+    inDouble = false,
+    esc = false;
+
+  const push = (end: number) => {
+    const piece = src.slice(start, end).trim();
+    if (piece) out.push(piece);
+    start = end + 1;
+  };
+
+  while (i < src.length) {
+    const ch = src[i];
+
+    if (esc) {
+      esc = false;
+      i++;
+      continue;
+    }
+
+    if (inSingle) {
+      if (ch === "\\") esc = true;
+      else if (ch === "'") inSingle = false;
+      i++;
+      continue;
+    }
+    if (inDouble) {
+      if (ch === "\\") esc = true;
+      else if (ch === '"') inDouble = false;
+      i++;
+      continue;
+    }
+
+    if (ch === "'") {
+      inSingle = true;
+      i++;
+      continue;
+    }
+    if (ch === '"') {
+      inDouble = true;
+      i++;
+      continue;
+    }
+
+    if (ch === "{") dCurly++;
+    else if (ch === "}") dCurly--;
+    else if (ch === "[") dSquare++;
+    else if (ch === "]") dSquare--;
+    else if (ch === "(") dParen++;
+    else if (ch === ")") dParen--;
+
+    if (ch === "," && dCurly === 0 && dSquare === 0 && dParen === 0) {
+      push(i);
+    }
+    i++;
+  }
+
+  const tail = src.slice(start).trim();
+  if (tail) out.push(tail);
+  return out;
+}
+
+/**
+ * Converte argumento textual em valor JS **sem executar código**.
+ * Suporta:
+ * - JSON/Array (começa com { ou [}) → JSON.parse (com normalização leve)
+ * - literais: true/false/null
+ * - números (int/float/sci)
+ * - strings com aspas simples/dobras
+ * - fallback: string crua
+ */
+function coerceArg(raw: string): any {
+  const s = raw.trim();
+
+  // { ... } ou [ ... ]
+  if (s.startsWith("{") || s.startsWith("[")) {
+    try {
+      return JSON.parse(s);
+    } catch {}
+    // normalização simples: aspas simples → duplas; chaves sem aspas → com aspas
+    const normalized = s
+      .replace(/'([^'\\]*?)'/g, (_, inner) => `"${inner.replace(/"/g, '\\"')}"`)
+      .replace(/([{,\s])([a-zA-Z_][a-zA-Z0-9_]*)\s*:/g, '$1"$2":');
+    try {
+      return JSON.parse(normalized);
+    } catch {}
+    throw new Error(`Invalid JSON-like argument: ${raw}`);
+  }
+
+  // literais
+  if (/^(true|false|null)$/i.test(s)) {
+    return s.toLowerCase() === "true"
+      ? true
+      : s.toLowerCase() === "false"
+      ? false
+      : null;
+  }
+
+  // número
+  if (/^[+-]?\d+(\.\d+)?([eE][+-]?\d+)?$/.test(s)) {
+    return Number(s);
+  }
+
+  // strings entre aspas
+  const mSingle = s.match(/^'(.*)'$/s);
+  if (mSingle) return mSingle[1].replace(/\\'/g, "'");
+  const mDouble = s.match(/^"(.*)"$/s);
+  if (mDouble) return mDouble[1].replace(/\\"/g, '"');
+
+  // fallback: string crua (ex.: foo@bar.com)
+  return s;
+}
+
+/**
+ * Resolve:
+ *  - date(...)
+ *  - faker.* com argumentos opcionais
+ *  - literal (retorna como veio)
+ *
+ * Retorno SEMPRE string:
+ *  - Date -> ISO (toISOString)
+ *  - object/array -> JSON.stringify
+ *  - demais -> String(...)
+ */
+export async function resolveDynamic(
+  text: string,
+  fakerOptions?: {
+    locale?: string;
+    seed?: number | number[];
+    configure?: (faker: any) => void;
+  }
+): Promise<string> {
   const t = text?.trim() ?? "";
   if (!t) return t;
 
@@ -184,13 +341,16 @@ export async function resolveDynamic(text: string): Promise<string> {
     return parseDynamicDateString(t);
   }
 
-  // faker.something()
+  // faker.module.fn(...args?)
   const m = t.match(FAKER_CALL_RE);
   if (m) {
     const path = m[1].split(".");
-    const faker = await getFaker();
+    const rawArgs = m.groups?.args?.trim() ?? "";
+    const args = rawArgs ? splitTopLevelArgs(rawArgs).map(coerceArg) : [];
 
-    // navega pelas chaves: ex. ["person","fullName"]
+    const faker = await getFaker(fakerOptions);
+
+    // navega nas chaves: ["person","fullName"], etc.
     let cur: any = faker;
     for (const k of path) cur = cur?.[k];
 
@@ -198,10 +358,13 @@ export async function resolveDynamic(text: string): Promise<string> {
       throw new Error(`Invalid faker path: faker.${path.join(".")}()`);
     }
 
-    const val = cur(); // zero-arg only
+    const val = cur(...args);
+
+    if (val instanceof Date) return val.toISOString();
+    if (typeof val === "object" && val !== null) return JSON.stringify(val);
     return String(val);
   }
 
-  // literal
+  // literal => texto
   return t;
 }

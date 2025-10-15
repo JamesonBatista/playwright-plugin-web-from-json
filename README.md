@@ -16,6 +16,29 @@ npm init playwright
 npm i playwright-plugin-web-from-json
 ```
 
+## Use recomended config in `playwright.config.ts`
+
+## ![alt text](image-2.png)
+
+## 🚀 Running the Test HTML
+
+To run the test HTML:
+
+1. **Install the Live Server extension** in VS Code.
+2. Open the file: `html/index.html`
+3. Right-click anywhere in the file.
+4. Select **"Open with Live Server"**.
+
+💡 This will automatically open the page in your default browser
+
+---
+
+### 🖼️ Example: Opening with Live Server
+
+![alt text](image-1.png)
+
+> If you don’t see this option, make sure the **Live Server** extension is properly installed and enabled in VS Code.
+
 ---
 
 ### Using `url`
@@ -31,33 +54,198 @@ npm i playwright-plugin-web-from-json
 
 ---
 
-## 🛠️ Actions Reference → Playwright
+<!-- Actions Reference → Playwright (compact HTML table for README) -->
+<style>
+  /* Scope styles so they don't leak */
+  .actions-ref { font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji","Segoe UI Emoji"; }
+  .actions-ref h2 { font-size: 16px; margin: 8px 0 10px; font-weight: 700; }
+  .actions-ref .table-wrap { overflow-x: auto; }
+  .actions-ref table { width: 100%; border-collapse: collapse; font-size: 12px; line-height: 1.35; table-layout: fixed; }
+  .actions-ref th, .actions-ref td { border: 1px solid #e5e7eb; padding: 8px; vertical-align: top; }
+  .actions-ref th {  text-align: left; font-weight: 700; }
+  .actions-ref code { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace; font-size: 11px; padding: 2px 4px; border-radius: 4px; }
+  .actions-ref .cell pre { margin: 0; white-space: pre-wrap; word-wrap: break-word; }
+  .actions-ref .muted { color: #6b7280; }
+  code {justify-content: center; align-items: center; display: flex;}
+  td {justify-content: center; align-items: center}
+</style>
 
-| Action                     | JSON (2 examples)                                                                                                                                                                                 | Playwright reference (2 examples)                                                                                                                                                                                                |
-| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `type`                     | `{ "loc": "#user", "type": "John" }`<br>`{ "loc": "input[name='email']", "type": "jam@example.com" }`                                                                                             | `await page.locator('#user').fill('John')`<br>`await page.locator('input[name="email"]').fill('jam@example.com')`                                                                                                                |
-| `typeSlow`                 | `{ "loc": "#msg", "typeSlow": "Hello" }`<br>`{ "loc": ".editor textarea", "typeSlow": "Long text…" }`                                                                                             | `await loc.fill(''); await loc.pressSequentially('Hello', { delay: 300 })`<br>`await page.locator('.editor textarea').pressSequentially('Long text…', { delay: 300 })`                                                           |
-| `click`                    | `{ "click": "button > Save" }`<br>`{ "click": "a:has-text('Docs')" }`                                                                                                                             | `await page.locator('button', { hasText: 'Save' }).click()`<br>`await page.locator("a:has-text('Docs')").click()`                                                                                                                |
-| `click: "{type}"`          | `{ "loc": "#q", "type": "Playwright" } , { "click": "{type}" }`<br>`{ "type": "Neo", "loc": "input[name='who']" } , { "click": "{type}" }`                                                        | `await page.locator('#q').fill('Playwright'); await page.getByText('Playwright', { exact: true }).click()`<br>`await page.locator("input[name='who']").fill('Neo'); await page.getByText('Neo', { exact: true }).click()`        |
-| `click: "<prefix> {type}"` | `{ "type": "Item 1", "loc": "#search" } , { "click": "ul.results {type}" }`<br>`{ "type": "Settings", "loc": "#menu-filter" } , { "click": "nav {type}" }`                                        | `await page.locator('#search').fill('Item 1'); await page.locator('ul.results *:has-text("Item 1")').click()`<br>`await page.locator('#menu-filter').fill('Settings'); await page.locator('nav *:has-text("Settings")').click()` |
-| `hover`                    | `{ "hover": ".menu" }`<br>`{ "hover": "button:has-text('Preview')" }`                                                                                                                             | `await page.locator('.menu').hover()`<br>`await page.locator("button:has-text('Preview')").hover()`                                                                                                                              |
-| `press`                    | `{ "press": "Enter", "loc": "#q" }`<br>`{ "press": "Escape" }`                                                                                                                                    | `await page.locator('#q').press('Enter')`<br>`await page.keyboard.press('Escape')`                                                                                                                                               |
-| `check` / `uncheck`        | `{ "check": "#agree" }`<br>`{ "uncheck": ".todo-list li:nth-child(1) .toggle" }`                                                                                                                  | `await page.locator('#agree').check()`<br>`await page.locator('.todo-list li:nth-child(1) .toggle').uncheck()`                                                                                                                   |
-| `select`                   | `{ "select": { "label": "Brazil" }, "loc": "#country" }`<br>`{ "select": { "value": "us" }, "loc": "select#country" }`                                                                            | `await page.locator('#country').selectOption({ label: 'Brazil' })`<br>`await page.locator('select#country').selectOption({ value: 'us' })`                                                                                       |
-| `upload`                   | `{ "upload": "fixtures/a.png", "loc": "input[type=file]" }`<br>`{ "upload": ["fixtures/a.png","fixtures/b.png"], "loc": "input[type=file]" }`                                                     | `await page.locator('input[type=file]').setInputFiles('fixtures/a.png')`<br>`await page.locator('input[type=file]').setInputFiles(['fixtures/a.png','fixtures/b.png'])`                                                          |
-| `exist`                    | `{ "exist": "#close-popup", "click": "#close-popup" }`<br>`{ "exist": "Promotion", "click": "Fechar" }`                                                                                           | Soft-check element then run remaining keys if found (no-op if not)<br>Soft-check text then click close                                                                                                                           |
-| `getText`                  | `{ "getText": "h1" }`<br>`{ "getText": ".card .title" }`                                                                                                                                          | `const t = await page.locator('h1').textContent()`<br>`const t = await page.locator('.card .title').textContent()`                                                                                                               |
-| `expectText`               | `{ "expectText": { "contains": "Welcome" } }`<br>`{ "loc": ".toast", "expectText": { "equals": "Saved!" } }`                                                                                      | `await expect(page.locator('body')).toContainText('Welcome')`<br>`await expect(page.locator('.toast')).toHaveText('Saved!')`                                                                                                     |
-| `expectVisible`            | `{ "expectVisible": "#toast" }`<br>`{ "loc": ".modal", "expectVisible": { "timeout": 2000 } }`                                                                                                    | `await expect(page.locator('#toast')).toBeVisible()`<br>`await expect(page.locator('.modal')).toBeVisible({ timeout: 2000 })`                                                                                                    |
-| `expectUrl`                | `{ "expectUrl": { "contains": "/home" } }`<br>`{ "expectUrl": { "equals": "https://app.test/dashboard" } }`                                                                                       | `await expect(page).toHaveURL(/\\/home/)`<br>`await expect(page).toHaveURL('https://app.test/dashboard')`                                                                                                                        |
-| `waitRequest`              | `{ "waitRequest": { "url": "/api/save", "status": 200 } }`<br>`{ "waitRequest": { "url": "**/users", "method": "POST" } }`                                                                        | `await handleWaitRequest(page, { url:'/api/save', status:200 })`<br>`await handleWaitRequest(page, { url:'**/users', method:'POST' })`                                                                                           |
-| `wait`                     | `{ "wait": 500 }`<br>`{ "wait": 1500 }`                                                                                                                                                           | `await page.waitForTimeout(500)`<br>`await page.waitForTimeout(1500)`                                                                                                                                                            |
-| `screenshot`               | `{ "screenshot": { "path": "shots/home.png", "fullPage": true } }`<br>`{ "loc": ".card", "screenshot": { "path": "shots/card.png" } }`                                                            | `await page.screenshot({ path:'shots/home.png', fullPage:true })`<br>`await page.locator('.card').screenshot({ path:'shots/card.png' })`                                                                                         |
-| `forEach`                  | `{ "forEach": { "items": ".product-card", "actions": [ { "click": "button:has-text('Details')" } ] } }`<br>`{ "forEach": { "items": "article.post", "actions": [ { "getText": "h2.title" } ] } }` |                                                                                                                                                                                                                                  |
-| `scrollTo`                 | `"bottom"`<br>`{ "to": "h2:has-text('Installation')" }`                                                                                                                                           | `await page.evaluate(() => window.scrollTo({ top: document.body.scrollHeight }))`<br>`await page.locator("h2:has-text('Installation')").scrollIntoViewIfNeeded()`                                                                |
-| `expectValue`              | `{ "expectValue": { "loc": "input[name='email']", "equals": "jam@example.com" } }`<br>`{ "expectValue": { "loc": "#q", "contains": "runner" } }`                                                  | `await expect(page.locator("input[name='email']")).toHaveValue("jam@example.com")`<br>`expect(await page.locator('#q').inputValue()).toContain('runner')`                                                                        |
-| `route`                    | `{ "route": { "url": "**/api/users", "mock": { "status": 200, "json": [{ "id":1,"name":"Neo"}] } } }`<br>`{ "route": { "unroute": "**/api/users" } }`                                             | `await page.route("**/api/users", r => r.fulfill({ status:200, headers:{'content-type':'application/json'}, body: JSON.stringify([{id:1,name:'Neo'}]) }))`<br>`await page.unroute("**/api/users")`                               |
-| `run`                      | `{ "run": "buildUser" }`<br>`{ "run": "nowISO" }`                                                                                                                                                 |
+<div class="actions-ref">
+  <h2>🛠️ Actions Reference → Playwright</h2>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th style="width:140px;">Action</th>
+          <th>JSON (2 examples)</th>
+          <th>Playwright reference (2 examples)</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>type</code></td>
+          <td class="cell"><pre><code>{ "loc": "#user", "type": "John" }
+{ "loc": "input[name='email']", "type": "jam@example.com" }</code></pre></td>
+          <td class="cell"><pre><code>await page.locator('#user').fill('John')
+await page.locator('input[name="email"]').fill('jam@example.com')</code></pre></td>
+        </tr>
+        <tr>
+          <td><code>typeSlow</code></td>
+          <td class="cell"><pre><code>{ "loc": "#msg", "typeSlow": "Hello" }
+{ "loc": ".editor textarea", "typeSlow": "Long text…" }</code></pre></td>
+          <td class="cell"><pre><code>await loc.fill(''); await loc.pressSequentially('Hello', { delay: 300 })
+await page.locator('.editor textarea').pressSequentially('Long text…', { delay: 300 })</code></pre></td>
+        </tr>
+        <tr>
+          <td><code>click</code></td>
+          <td class="cell"><pre><code>{ "click": "button > Save" }
+{ "click": "a:has-text('Docs')" }</code></pre></td>
+          <td class="cell"><pre><code>await page.locator('button', { hasText: 'Save' }).click()
+await page.locator("a:has-text('Docs')").click()</code></pre></td>
+        </tr>
+        <tr>
+          <td><code>click: "{type}"</code></td>
+          <td class="cell"><pre><code>{ "loc": "#q", "type": "Playwright" }, { "click": "{type}" }
+{ "type": "Neo", "loc": "input[name='who']" }, { "click": "{type}" }</code></pre></td>
+          <td class="cell"><pre><code>await page.locator('#q').fill('Playwright'); await page.getByText('Playwright', { exact: true }).click()
+await page.locator("input[name='who']").fill('Neo'); await page.getByText('Neo', { exact: true }).click()</code></pre></td>
+        </tr>
+        <tr>
+          <td><code>click: "&lt;prefix&gt; {type}"</code></td>
+          <td class="cell"><pre><code>{ "type": "Item 1", "loc": "#search" }, { "click": "ul.results {type}" }
+{ "type": "Settings", "loc": "#menu-filter" }, { "click": "nav {type}" }</code></pre></td>
+          <td class="cell"><pre><code>await page.locator('#search').fill('Item 1'); await page.locator('ul.results *:has-text("Item 1")').click()
+await page.locator('#menu-filter').fill('Settings'); await page.locator('nav *:has-text("Settings")').click()</code></pre></td>
+        </tr>
+        <tr>
+          <td><code>hover</code></td>
+          <td class="cell"><pre><code>{ "hover": ".menu" }
+{ "hover": "button:has-text('Preview')" }</code></pre></td>
+          <td class="cell"><pre><code>await page.locator('.menu').hover()
+await page.locator("button:has-text('Preview')").hover()</code></pre></td>
+        </tr>
+        <tr>
+          <td><code>press</code></td>
+          <td class="cell"><pre><code>{ "press": "Enter", "loc": "#q" }
+{ "press": "Escape" }</code></pre></td>
+          <td class="cell"><pre><code>await page.locator('#q').press('Enter')
+await page.keyboard.press('Escape')</code></pre></td>
+        </tr>
+        <tr>
+          <td><code>check</code> / <code>uncheck</code></td>
+          <td class="cell"><pre><code>{ "check": "#agree" }
+{ "uncheck": ".todo-list li:nth-child(1) .toggle" }</code></pre></td>
+          <td class="cell"><pre><code>await page.locator('#agree').check()
+await page.locator('.todo-list li:nth-child(1) .toggle').uncheck()</code></pre></td>
+        </tr>
+        <tr>
+          <td><code>select</code></td>
+          <td class="cell"><pre><code>{ "select": { "label": "Brazil" }, "loc": "#country" }
+{ "select": { "value": "us" }, "loc": "select#country" }</code></pre></td>
+          <td class="cell"><pre><code>await page.locator('#country').selectOption({ label: 'Brazil' })
+await page.locator('select#country').selectOption({ value: 'us' })</code></pre></td>
+        </tr>
+        <tr>
+          <td><code>upload</code></td>
+          <td class="cell"><pre><code>{ "upload": { "loc": "input[type=file]", "files": ["fixtures/a.png"] } }
+{ "upload": { "loc": "input[type=file]", "files": ["fixtures/a.png","fixtures/b.png"] } }</code></pre></td>
+          <td class="cell"><pre><code>await page.locator('input[type=file]').setInputFiles('fixtures/a.png')
+await page.locator('input[type=file]').setInputFiles(['fixtures/a.png','fixtures/b.png'])</code></pre></td>
+        </tr>
+        <tr>
+          <td><code>exist</code></td>
+          <td class="cell"><pre><code>{ "exist": "#close-popup", "click": "#close-popup" }
+{ "exist": "Promotion", "click": "Fechar" }</code></pre></td>
+          <td class="cell"><pre><code>/* Soft-check element then run remaining keys if found */
+ /* Soft-check text then click close */</code></pre></td>
+        </tr>
+        <tr>
+          <td><code>getText</code></td>
+          <td class="cell"><pre><code>{ "getText": "h1" }
+{ "getText": ".card .title" }</code></pre></td>
+          <td class="cell"><pre><code>const t = await page.locator('h1').textContent()
+const t2 = await page.locator('.card .title').textContent()</code></pre></td>
+        </tr>
+        <tr>
+          <td><code>expectText</code></td>
+          <td class="cell"><pre><code>{ "expectText": { "contains": "Welcome" } }
+{ "loc": ".toast", "expectText": { "equals": "Saved!" } }</code></pre></td>
+          <td class="cell"><pre><code>await expect(page.locator('body')).toContainText('Welcome')
+await expect(page.locator('.toast')).toHaveText('Saved!')</code></pre></td>
+        </tr>
+        <tr>
+          <td><code>expectVisible</code></td>
+          <td class="cell"><pre><code>{ "expectVisible": "#toast" }
+{ "loc": ".modal", "expectVisible": { "timeout": 2000 } }</code></pre></td>
+          <td class="cell"><pre><code>await expect(page.locator('#toast')).toBeVisible()
+await expect(page.locator('.modal')).toBeVisible({ timeout: 2000 })</code></pre></td>
+        </tr>
+        <tr>
+          <td><code>expectUrl</code></td>
+          <td class="cell"><pre><code>{ "expectUrl": { "contains": "/home" } }
+{ "expectUrl": { "equals": "https://app.test/dashboard" } }</code></pre></td>
+          <td class="cell"><pre><code>await expect(page).toHaveURL(/\/home/)
+await expect(page).toHaveURL('https://app.test/dashboard')</code></pre></td>
+        </tr>
+        <tr>
+          <td><code>waitRequest</code></td>
+          <td class="cell"><pre><code>{ "waitRequest": { "url": "/api/save", "status": 200 } }
+{ "waitRequest": { "url": "**/users", "method": "POST" } }</code></pre></td>
+          <td class="cell"><pre><code>await handleWaitRequest(page, { url:'/api/save', status:200 })
+await handleWaitRequest(page, { url:'**/users', method:'POST' })</code></pre></td>
+        </tr>
+        <tr>
+          <td><code>wait</code></td>
+          <td class="cell"><pre><code>{ "wait": 500 }
+{ "wait": 1500 }</code></pre></td>
+          <td class="cell"><pre><code>await page.waitForTimeout(500)
+await page.waitForTimeout(1500)</code></pre></td>
+        </tr>
+        <tr>
+          <td><code>screenshot</code></td>
+          <td class="cell"><pre><code>{ "screenshot": { "path": "shots/home.png", "fullPage": true } }
+{ "loc": ".card", "screenshot": { "path": "shots/card.png" } }</code></pre></td>
+          <td class="cell"><pre><code>await page.screenshot({ path:'shots/home.png', fullPage:true })
+await page.locator('.card').screenshot({ path:'shots/card.png' })</code></pre></td>
+        </tr>
+        <tr>
+          <td><code>forEach</code></td>
+          <td class="cell"><pre><code>{ "forEach": { "items": ".product-card", "actions": [ { "click": "button:has-text('Details')" } ] } }
+{ "forEach": { "items": "article.post", "actions": [ { "getText": "h2.title" } ] } }</code></pre></td>
+          <td class="cell"><pre><code>/* Iterate matched items and run nested actions */</code></pre></td>
+        </tr>
+        <tr>
+          <td><code>scrollTo</code></td>
+          <td class="cell"><pre><code>"bottom"
+{ "to": "h2:has-text('Installation')" }</code></pre></td>
+          <td class="cell"><pre><code>await page.evaluate(() => window.scrollTo({ top: document.body.scrollHeight }))
+await page.locator("h2:has-text('Installation')").scrollIntoViewIfNeeded()</code></pre></td>
+        </tr>
+        <tr>
+          <td><code>expectValue</code></td>
+          <td class="cell"><pre><code>{ "expectValue": { "loc": "input[name='email']", "equals": "jam@example.com" } }
+{ "expectValue": { "loc": "#q", "contains": "runner" } }</code></pre></td>
+          <td class="cell"><pre><code>await expect(page.locator("input[name='email']")).toHaveValue("jam@example.com")
+expect(await page.locator('#q').inputValue()).toContain('runner')</code></pre></td>
+        </tr>
+        <tr>
+          <td><code>route</code></td>
+          <td class="cell"><pre><code>{ "route": { "url": "**/api/users", "mock": { "status": 200, "json": [{ "id":1,"name":"Neo"}] } } }
+{ "route": { "unroute": "**/api/users" } }</code></pre></td>
+          <td class="cell"><pre><code>await page.route("**/api/users", r =&gt; r.fulfill({ status:200, headers:{'content-type':'application/json'}, body: JSON.stringify([{id:1,name:'Neo'}]) }))
+await page.unroute("**/api/users")</code></pre></td>
+        </tr>
+        <tr>
+          <td><code>run</code></td>
+          <td class="cell"><pre><code>{ "run": "buildUser" }
+{ "run": "nowISO" }</code></pre></td>
+          <td class="cell"><pre><code>/* Executes plugin function RunPluginFunctions.buildUser() / nowISO() */</code></pre></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="muted">Tip: você pode ajustar <code>font-size</code> nas regras acima (12px / 11px) se quiser ainda menor.</p>
+</div>
 
 ### ✅ Complete context example (realistic)
 
@@ -87,11 +275,17 @@ npm i playwright-plugin-web-from-json
 }
 ```
 
-**Playwright mapping** (conceptual):  
-`scope = page.frameLocator('#shell').frameLocator('#app').locator('nav#sidebar');`  
-`parent = scope.getByText('Management', { exact: true }); climbed = parent.locator('..').locator('..');`  
-`scope = climbed.locator('ul.menu');`  
-`locator = scope.locator('li', { hasText: 'Users' }).nth(2);`
+**Playwright mapping** (conceptual):
+
+- `scope = page.frameLocator('#shell').frameLocator('#app').locator('nav#sidebar');`
+
+- `parent = scope.getByText('Management', { exact: true });`
+
+- `climbed = parent.locator('..').locator('..');`
+
+`scope = climbed.locator('ul.menu');`
+
+- `locator = scope.locator('li', { hasText: 'Users' }).nth(2);`
 
 > **Note**: Setting `nth/first/last` at **action-level** overrides the **case-level** `context` indexing for that action.
 
@@ -701,11 +895,45 @@ Specials available during a test:
 }
 ```
 
-**Mapping of the first block**:
+## Using faker in type or typeSlow
 
-- `context.nth:0` → any locator built without explicit index will use `.nth(0)`
-- `{"last": true, "click": ...}` → overrides to `.last()` only for that action
-- `{"nth": 4, ...}` → overrides to `.nth(4)` only for that action
-- `{"first": true, ...}` → overrides to `.first()` only for that action
+# Using `faker` with `type` / `typeSlow`
+
+The plugin’s `type` and `typeSlow` fields accept **any Faker v10 API call exactly as documented**: **[https://fakerjs.dev](https://fakerjs.dev/api/)**
+
+## Supported forms (real examples)
+
+- No args
+
+  - `faker.internet.email()`
+  - `faker.person.fullName()`
+  - `faker.location.streetAddress()`
+
+- Single number arg
+
+  - `faker.string.alphanumeric(12)`
+  - `faker.number.int(9999)` <!-- shorthand max -->
+  - `faker.number.float(2)` <!-- precision shorthand -->
+
+- Options object
+
+  - `faker.number.int({ min: 100, max: 999 })`
+  - `faker.finance.amount({ min: 10, max: 5000, dec: 2 })`
+  - `faker.date.past({ years: 1 })`
+  - `faker.date.soon({ days: 3 })`
+
+- Array (or multiple) args
+
+  - `faker.string.fromCharacters(['A','B','C'], 8)`
+  - `faker.helpers.arrayElement(['BR','US','AR'])`
+  - `faker.phone.number(['+55 11 ####-####', '+55 21 ####-####'])`
+
+- Mixed / specific formatting
+  - `faker.internet.userName('john_doe')`
+  - `faker.date.between({ from: '2020-01-01T00:00:00.000Z', to: '2030-01-01T00:00:00.000Z' })`
+  - `faker.phone.number('(+55 ##) 9####-####')`
+  - `faker.commerce.price({ min: 9.9, max: 199.9 })`
+
+For the complete list of modules, methods, and arguments, see **https://fakerjs.dev**.
 
 ---

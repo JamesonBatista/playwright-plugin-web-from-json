@@ -82,7 +82,7 @@ async function loadRunFunctions(
         mod?.default;
       if (Ctor) return new Ctor();
     } catch {
-      /* ignore and try next */
+      /* tenta o próximo */
     }
   }
   return undefined;
@@ -94,7 +94,7 @@ function loadJSON(absPath: string): any {
   return JSON.parse(raw);
 }
 
-/* ===================== Scope / locator ===================== */
+/* ===================== Scope / locator helpers ===================== */
 function applyIndex(loc: Locator, actionCtx?: any, caseCtx?: any) {
   const nth = actionCtx?.nth ?? caseCtx?.nth;
   const first = actionCtx?.first ?? caseCtx?.first;
@@ -109,6 +109,90 @@ function applyIndex(loc: Locator, actionCtx?: any, caseCtx?: any) {
   if (last) return loc.last();
   if (first) return loc.first();
   return loc.first(); // default
+}
+
+function describeCtx(actionCtx?: any, caseCtx?: any) {
+  const parts: string[] = [];
+  const push = (k: string) => {
+    const v = (actionCtx && actionCtx[k]) ?? (caseCtx && caseCtx[k]);
+    if (v !== undefined) parts.push(`${k}=${JSON.stringify(v)}`);
+  };
+  [
+    "frame",
+    "iframe",
+    "root",
+    "within",
+    "parent",
+    "index",
+    "nth",
+    "first",
+    "last",
+  ].forEach(push);
+  return parts.length ? ` [ctx ${parts.join(" ")}]` : "";
+}
+
+/** Cria um Locator a partir do escopo e string (selector ou texto/tag>text) */
+function makeLocatorFromScope(
+  scope: Page | FrameLocator | Locator,
+  raw: string,
+  actionCtx?: any,
+  caseCtx?: any,
+  unindexed = false
+): Locator {
+  const tt = splitTagTextPattern(raw);
+  let loc: Locator;
+
+  if (tt) {
+    // "button > Salvar"
+    // @ts-ignore
+    loc = (scope as any).locator(tt.tag, { hasText: tt.text });
+  } else if (isSelector(raw)) {
+    try {
+      // @ts-ignore
+      loc = (scope as any).locator(raw);
+    } catch {
+      // @ts-ignore
+      loc = (scope as any).getByText(raw, { exact: true });
+    }
+  } else {
+    // @ts-ignore
+    loc = (scope as any).getByText(raw, { exact: true });
+  }
+
+  return unindexed ? (loc as Locator) : applyIndex(loc, actionCtx, caseCtx);
+}
+
+/** Valida que o locator existe (count>0). Erra com mensagem útil. */
+async function ensureFound(
+  loc: Locator,
+  raw: string,
+  ctxNote = ""
+): Promise<void> {
+  let count = 0;
+  try {
+    count = await loc.count();
+  } catch {
+    /* e.g. bad selector */
+  }
+  if (count === 0) {
+    throw new Error(
+      `Selector/text not found: ${JSON.stringify(raw)}${ctxNote}`
+    );
+  }
+}
+
+/** Shortcut para criar + validar locator */
+async function locateOrFail(
+  scope: Page | FrameLocator | Locator,
+  raw: string,
+  actionCtx?: any,
+  caseCtx?: any,
+  unindexed = false
+): Promise<Locator> {
+  const ctxNote = describeCtx(actionCtx, caseCtx);
+  const loc = makeLocatorFromScope(scope, raw, actionCtx, caseCtx, unindexed);
+  await ensureFound(loc, raw, ctxNote);
+  return loc;
 }
 
 async function buildScope(
@@ -137,13 +221,15 @@ async function buildScope(
     scope = (scope as any).frameLocator(sel);
   }
 
-  // root
+  // root (VALIDA)
   if (rootSel) {
     // @ts-ignore
-    scope = (scope as any).locator(rootSel);
+    const candidate: Locator = (scope as any).locator(rootSel);
+    await ensureFound(candidate, String(rootSel), " [root]");
+    scope = candidate;
   }
 
-  // parent (+ climbs)
+  // parent (+ climbs) (VALIDA parent base)
   if (parentSel) {
     let parentLocator: Locator;
     if (isSelector(parentSel)) {
@@ -156,8 +242,7 @@ async function buildScope(
       });
     }
 
-    const exists = (await parentLocator.count()) > 0;
-    if (!exists) throw new Error(`parent not found: ${String(parentSel)}`);
+    await ensureFound(parentLocator, String(parentSel), " [parent]");
 
     const up =
       typeof parentIndexUp === "number" && parentIndexUp >= 1
@@ -169,44 +254,15 @@ async function buildScope(
     scope = climbed;
   }
 
-  // within
+  // within (VALIDA)
   if (withinSel) {
     // @ts-ignore
-    scope = (scope as any).locator(withinSel);
+    const candidate: Locator = (scope as any).locator(withinSel);
+    await ensureFound(candidate, String(withinSel), " [within]");
+    scope = candidate;
   }
 
   return scope;
-}
-
-function makeLocatorFromScope(
-  scope: Page | FrameLocator | Locator,
-  raw: string,
-  actionCtx?: any,
-  caseCtx?: any,
-  unindexed = false
-): Locator {
-  const tt = splitTagTextPattern(raw);
-  let loc: Locator;
-
-  if (tt) {
-    // "button > Salvar"
-    // @ts-ignore
-    loc = (scope as any).locator(tt.tag, { hasText: tt.text });
-  } else if (isSelector(raw)) {
-    // tenta seletor; se for inválido, cai pra texto
-    try {
-      // @ts-ignore
-      loc = (scope as any).locator(raw);
-    } catch {
-      // @ts-ignore
-      loc = (scope as any).getByText(raw, { exact: true });
-    }
-  } else {
-    // @ts-ignore
-    loc = (scope as any).getByText(raw, { exact: true });
-  }
-
-  return unindexed ? (loc as Locator) : applyIndex(loc, actionCtx, caseCtx);
 }
 
 /* ===================== URL resolver ===================== */
@@ -256,7 +312,7 @@ async function processAction(
   baseScope?: Page | FrameLocator | Locator,
   memo?: { lastTypedText?: string; lastGetText?: string }
 ) {
-  // --- RUN PRIMEIRO (antes de interpolar), com suporte a `as` e fallback em resultFunc ---
+  // --- RUN PRIMEIRO (antes de interpolar) ---
   if ((actionRaw as any).run) {
     if (!pluginFns) {
       throw new Error(
@@ -282,27 +338,22 @@ async function processAction(
     if (moreKeys.length === 0) return;
   }
 
-  // --- Interpolar agora (após run), para {resultFunc} / {alias} funcionarem ---
+  // --- Interpolar agora (após run) ---
   const action = JSON.parse(JSON.stringify(actionRaw), (_k, v) =>
     typeof v === "string" ? interpolateTokens(v, vars) : v
   );
 
-  const scope = await buildScope(page, action, value.context, baseScope);
-  const makeLocator = (raw: string): Locator =>
-    makeLocatorFromScope(scope, raw, action, value.context);
-  const makeLocatorUnindexed = (raw: string): Locator =>
-    makeLocatorFromScope(scope, raw, undefined, undefined, true);
+  const scope = await buildScope(page, action, value?.context, baseScope);
+  const locate = async (raw: string) =>
+    await locateOrFail(scope, raw, action, value?.context);
+  const locateUnindexed = async (raw: string) =>
+    await locateOrFail(scope, raw, undefined, undefined, true);
 
   /* exist (gate) */
   if ((action as any).exist) {
     const raw = String((action as any).exist).trim();
-    const base = makeLocatorUnindexed(raw);
-    let found = false;
-    try {
-      found = (await base.count()) > 0;
-    } catch {
-      found = false;
-    }
+    const base = await locateUnindexed(raw);
+    const found = (await base.count()) > 0;
     if (!found) return;
   }
 
@@ -311,7 +362,7 @@ async function processAction(
     const fe = (action as any).forEach;
     const itemsSel: string = String(fe.items ?? "").trim();
     if (!itemsSel) throw new Error(`forEach needs "items" selector/text.`);
-    const itemBase = makeLocatorUnindexed(itemsSel);
+    const itemBase = await locateUnindexed(itemsSel); // valida existir pelo menos 1
     const count = await itemBase.count();
     for (let i = 0; i < count; i++) {
       const item = itemBase.nth(i);
@@ -339,13 +390,13 @@ async function processAction(
   /* getText */
   if ((action as any).getText) {
     const raw = String((action as any).getText).trim();
-    const loc = makeLocator(raw);
+    const loc = await locate(raw);
     const text = await loc.textContent();
     if (memo) memo.lastGetText = text ?? undefined;
     vars.lastGetText = memo?.lastGetText;
   }
 
-  /* type / typeSlow — usa seu resolveDynamic (faker, date(...), etc.) */
+  /* type / typeSlow */
   if (
     typeof (action as any).typeSlow === "string" ||
     typeof (action as any).type === "string"
@@ -364,7 +415,7 @@ async function processAction(
         }. Use "loc" or "click" (selector).`
       );
 
-    const loc = makeLocator(targetRaw);
+    const loc = await locate(targetRaw);
     if (tIsSlow) {
       await loc.fill("");
       await loc.pressSequentially(String(text), { delay: 300 });
@@ -384,37 +435,33 @@ async function processAction(
     if (m) {
       const prefix = m[1].trim();
       if (!typed) throw new Error(`click "${c}" used but no prior typed text.`);
-      if (prefix) {
-        const locator = makeLocator(`${prefix} *:has-text("${typed}")`);
-        await locator.click().catch(() => {});
-      } else {
-        const locator = makeLocator(typed);
-        await locator.click().catch(() => {});
-      }
+      const targetRaw = prefix ? `${prefix} *:has-text("${typed}")` : typed;
+      const locator = await locate(targetRaw);
+      await locator.click();
     } else if (c === "{type}") {
       if (!typed)
         throw new Error(`click "{type}" used but no prior typed text.`);
-      const locator = makeLocator(typed);
-      await locator.click().catch(() => {});
+      const locator = await locate(typed);
+      await locator.click();
     } else {
-      const locator = makeLocator(c);
-      await locator.click().catch(() => {});
+      const locator = await locate(c);
+      await locator.click();
     }
   }
 
   /* hover */
   if ((action as any).hover) {
-    const loc = makeLocator(String((action as any).hover).trim());
+    const loc = await locate(String((action as any).hover).trim());
     await loc.hover();
   }
 
   /* press */
   if ((action as any).press) {
     if ((action as any).loc) {
-      const loc = makeLocator((action as any).loc);
+      const loc = await locate((action as any).loc);
       await loc.press((action as any).press);
     } else if ((action as any).click && isSelector((action as any).click)) {
-      const loc = makeLocator((action as any).click);
+      const loc = await locate((action as any).click);
       await loc.press((action as any).press);
     } else {
       await page.keyboard.press((action as any).press);
@@ -426,7 +473,7 @@ async function processAction(
     let targetRaw: string | undefined;
     if (typeof raw === "string") targetRaw = raw;
     else if (raw && typeof raw === "object" && "loc" in raw)
-      targetRaw = raw.loc;
+      targetRaw = (raw as any).loc;
     if (!targetRaw) {
       const legacy = (ctx?: { loc?: string; click?: string }) => {
         if (ctx?.loc) return ctx.loc;
@@ -434,7 +481,7 @@ async function processAction(
           return ctx.click as any;
         return undefined;
       };
-      targetRaw = legacy(action as any) ?? legacy(value.context as any);
+      targetRaw = legacy(action as any) ?? legacy(value?.context as any);
     }
     if (!targetRaw)
       throw new Error(
@@ -442,7 +489,7 @@ async function processAction(
           makeChecked ? "check" : "uncheck"
         } needs a target. Use loc or click selector.`
       );
-    const loc = makeLocator(targetRaw);
+    const loc = await locate(targetRaw);
     if (makeChecked) await loc.check();
     else await loc.uncheck();
   }
@@ -460,11 +507,78 @@ async function processAction(
         : undefined);
     if (!rawTarget)
       throw new Error(`select needs 'loc' or 'click' (selector).`);
-    const loc = makeLocator(rawTarget);
+    const loc = await locate(rawTarget);
     const sel = (action as any).select;
     if ("value" in sel) await loc.selectOption(sel.value as any);
     else if ("label" in sel) await loc.selectOption(sel.label as any);
     else if ("index" in sel) await loc.selectOption(sel.index as any);
+  }
+
+  /* upload */
+  if ((action as any).upload !== undefined) {
+    const up = (action as any).upload;
+    if (!up || typeof up !== "object") {
+      throw new Error(
+        `upload must be an object like { loc?: string, files: string[] }`
+      );
+    }
+
+    const rawTarget: string | undefined =
+      up.loc ??
+      ((isSelector((action as any).click ?? "") && (action as any).click) ||
+        undefined);
+
+    if (!rawTarget) {
+      throw new Error(
+        `upload needs a target. Use "upload.loc" or "click" (selector).`
+      );
+    }
+
+    const input = await locate(rawTarget); // valida existência
+
+    // Confirma que é input type=file
+    const tagName = (await input.evaluate((el) => el.nodeName)).toLowerCase();
+    const typeAttr = (await input.getAttribute("type"))?.toLowerCase();
+    if (!(tagName === "input" && typeAttr === "file")) {
+      throw new Error(
+        `upload target is not <input type="file"> (got <${tagName} type="${
+          typeAttr ?? ""
+        }">) for ${JSON.stringify(rawTarget)}`
+      );
+    }
+
+    const filesRaw = Array.isArray(up.files)
+      ? up.files
+      : up.files != null
+      ? [up.files]
+      : [];
+    const expectedCount = filesRaw.length;
+
+    // Base para caminhos relativos (se desejar, preencha value.__jsonBaseDir no createDescribeForFile/runJsonFileInline)
+    const baseDir = (value && (value as any).__jsonBaseDir) || process.cwd();
+    const absFiles = filesRaw.map((p: string) =>
+      path.isAbsolute(p) ? p : path.resolve(baseDir, p)
+    );
+
+    for (const f of absFiles) {
+      if (!fs.existsSync(f)) {
+        throw new Error(`upload file not found on disk: ${f}`);
+      }
+    }
+
+    await input.setInputFiles(absFiles);
+
+    // Verificação pós-upload
+    const filesLen = await input.evaluate(
+      (el) => (el as HTMLInputElement).files?.length ?? 0
+    );
+    if (filesLen !== expectedCount) {
+      throw new Error(
+        `upload mismatch: expected ${expectedCount} file(s), input now has ${filesLen}. Target=${JSON.stringify(
+          rawTarget
+        )}`
+      );
+    }
   }
 
   /* expectText */
@@ -486,8 +600,8 @@ async function processAction(
     ) {
       throw new Error(`expectText needs one of: { equals | contains }.`);
     }
-    const loc = rawTarget ? makeLocator(rawTarget) : undefined;
-    if (loc) {
+    if (rawTarget) {
+      const loc = await locate(rawTarget);
       if (et.equals !== undefined) {
         await expect(loc).toHaveText(et.equals as any, { timeout: et.timeout });
       } else {
@@ -499,7 +613,9 @@ async function processAction(
       if (et.equals !== undefined) {
         await expect(
           page.getByText(et.equals as any, { exact: true })
-        ).toBeVisible({ timeout: et.timeout });
+        ).toBeVisible({
+          timeout: et.timeout,
+        });
       } else {
         await expect(page.locator("body")).toContainText(et.contains as any, {
           timeout: et.timeout,
@@ -530,7 +646,7 @@ async function processAction(
       throw new Error(
         `expectVisible needs a target: use string or object form with loc/click.`
       );
-    const loc = makeLocator(rawTarget);
+    const loc = await locate(rawTarget);
     await expect(loc).toBeVisible({ timeout: to });
   }
 
@@ -539,12 +655,16 @@ async function processAction(
     const ev = (action as any).expectValue;
     if (!ev || typeof ev !== "object" || !ev.loc)
       throw new Error(`expectValue needs { loc, equals|contains }`);
-    const loc = makeLocator(String(ev.loc));
+    const loc = await locate(String(ev.loc));
     if (ev.equals !== undefined) {
       await expect(loc).toHaveValue(ev.equals as any, { timeout: ev.timeout });
     } else if (ev.contains !== undefined) {
       const v = await loc.inputValue();
-      expect(v).toContain(String(ev.contains));
+      if (!v.includes(String(ev.contains))) {
+        throw new Error(
+          `expectValue: value "${v}" does not contain "${String(ev.contains)}".`
+        );
+      }
     } else {
       throw new Error(`expectValue requires either "equals" or "contains".`);
     }
@@ -566,7 +686,7 @@ async function processAction(
     }
   }
 
-  /* waitRequest (compatível com seu JSON) */
+  /* waitRequest */
   if ((action as any).waitRequest) {
     const wr = (action as any).waitRequest as {
       urlIncludes?: string;
@@ -634,7 +754,7 @@ async function processAction(
         );
       } else if (st.to) {
         const target = String(st.to);
-        const loc = makeLocator(target);
+        const loc = await locate(target);
         await loc.scrollIntoViewIfNeeded();
       } else {
         throw new Error(`scrollTo object requires either { to } or { x|y }.`);
@@ -648,7 +768,7 @@ async function processAction(
       (isSelector((action as any).click ?? "")
         ? (action as any).click!
         : undefined);
-    const loc = rawTarget ? makeLocator(rawTarget) : undefined;
+    const loc = rawTarget ? await locate(rawTarget) : undefined;
     if (loc) {
       await loc.screenshot({
         path: (action as any).screenshot.path,
@@ -682,6 +802,9 @@ async function runJsonFileInline(
   for (const [k, v] of Object.entries(describeBlock)) {
     if (k === "text" || k === "url" || k === "before") continue;
     const value: any = (v ?? {}) as any;
+
+    // fornece baseDir p/ caminhos relativos em upload, etc.
+    (value as any).__jsonBaseDir = path.dirname(jsonAbsPath);
 
     const targetUrl = resolveUrlForCase(
       value.url,
@@ -788,6 +911,9 @@ export function createDescribeForFile(
             );
           }
         }
+
+        // fornece baseDir p/ caminhos relativos em upload, etc. deste próprio JSON
+        (value as any).__jsonBaseDir = path.dirname(filePath);
 
         // Navegação: prioridade case.url -> describe.url
         const targetUrl = resolveUrlForCase(

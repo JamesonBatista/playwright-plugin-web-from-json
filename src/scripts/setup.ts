@@ -68,6 +68,7 @@ function main() {
       },
     },
   };
+
   writeFileIfNotExists(
     beforeJsonPath,
     JSON.stringify(beforeJsonContent, null, 2) + "\n"
@@ -302,15 +303,38 @@ generateTestsFromJson(
     describe: {
       text: "Using Test before Funcion",
       before: "../hooks/before-json.json",
-      actions: [{ wait: 3000 }],
+      "wait before each test": {
+        text: "wait before each test",
+        actions: [{ wait: 3000 }],
+      },
     },
   };
+
   writeFileIfNotExists(
     beforePath,
     JSON.stringify(beforeExample, null, 2) + "\n"
   );
 
   // before final
+
+  // automation example
+  const automationPath = path.join(fixturesDir, "before-plugin.json");
+  const autoExample = {
+    describe: {
+      text: "Using Test before Funcion",
+      before: "../hooks/before-json.json",
+      "wait before each test": {
+        text: "wait before each test",
+        actions: [{ wait: 3000 }],
+      },
+    },
+  };
+
+  writeFileIfNotExists(
+    automationPath,
+    JSON.stringify(autoExample, null, 2) + "\n"
+  );
+  // auto json
 
   // secund json
   const exampleJsonPathSecond = path.join(
