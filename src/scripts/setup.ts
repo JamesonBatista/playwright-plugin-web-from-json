@@ -99,8 +99,9 @@ function main() {
   }
 
   const specPath = path.join(targetTestsDir, "json-plugin.spec.ts");
-  const specContent = `import { test } from "@playwright/test";
+  const specContent = `
 import { generateTestsFromJson } from "playwright-plugin-web-from-json";
+import { test } from "../config/before-config";
 import path from "path";
 
 generateTestsFromJson(
@@ -116,6 +117,50 @@ generateTestsFromJson(
 `;
   writeFileIfNotExists(specPath, specContent);
 
+  // before-config.ts
+  const beforeConfig = path.resolve(projectRoot, "config");
+  const beforeFile = path.join(beforeConfig, "before-config.ts");
+
+  const beforeContent = `// before/before-config.ts
+import { test as base, expect } from "@playwright/test";
+
+// (Optional) Define fixture types here if you plan to add any later.
+type Fixtures = {};
+
+// Extend Playwright's test. For now, no custom fixtures or hooks are active.
+// This file is a placeholder so you can easily enable per-test context/page or
+// any "before each" logic later without changing your runner signature.
+export const test = base.extend<Fixtures>({
+  // Example (disabled): provide a custom BrowserContext per test
+  // context: async ({ browser }, use) => {
+  //   const context = await browser.newContext({ /* options */ });
+  //   await use(context);
+  //   await context.close();
+  // },
+
+  // Example (disabled): provide a Page per test and run pre-test actions
+  // page: async ({ context }, use) => {
+  //   const page = await context.newPage();
+  //   // Place any per-test setup here (cookies, flags, login, etc.)
+  //   await use(page);
+  //   await page.close();
+  // },
+});
+
+// Global hooks — currently no-ops. Keep them to quickly add logic later if needed.
+test.beforeEach(async ({ /* page, context */ }) => {
+  // Reserved for actions to run before each test.
+});
+
+test.afterEach(async ({ /* page, context */ }) => {
+  // Reserved for actions to run after each test.
+});
+
+export { expect };
+
+`;
+  writeFileIfNotExists(beforeFile, beforeContent);
+  // f
   const exampleJsonPathSnippets = path.join(
     fixturesDir,
     "playwright-plugin-web-from-json.json"
@@ -297,25 +342,6 @@ generateTestsFromJson(
     exampleJsonPathSnippets,
     JSON.stringify(exampleJsonSnippets, null, 2) + "\n"
   );
-  // before example
-  const beforePath = path.join(fixturesDir, "before-plugin.json");
-  const beforeExample = {
-    describe: {
-      text: "Using Test before Funcion",
-      before: "../hooks/before-json.json",
-      "wait before each test": {
-        text: "wait before each test",
-        actions: [{ wait: 3000 }],
-      },
-    },
-  };
-
-  writeFileIfNotExists(
-    beforePath,
-    JSON.stringify(beforeExample, null, 2) + "\n"
-  );
-
-  // before final
 
   // automation example
   const automationPath = path.join(fixturesDir, "before-plugin.json");

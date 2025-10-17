@@ -16,6 +16,272 @@ npm init playwright
 npm i playwright-plugin-web-from-json
 ```
 
+## Created file/folder structure
+
+```
+.
+├─ hooks/
+│  └─ before-json.json              # A JSON “before” chain you can reuse from other JSONs
+├─ Fixtures/
+│  ├─ playwright-plugin-web-from-json.json  # Full Scenario Lab suite (many actions/assertions)
+│  ├─ before-plugin.json            # Example that reuses `../hooks/before-json.json`
+│  ├─ plugin-example-voe-latam.json # Example flow on LATAM site (Brazil)
+│  └─ plugin-example-auto.json      # Example flow on your demo app (GitHub Pages)
+├─ html/
+│  └─ index.html                    # “Scenario Lab” static page used by tests
+├─ help/
+│  └─ plugin-func.ts                # Implements class `RunPluginFunctions` for `"run"` actions
+└─ tests/ or e2e/
+   └─ json-plugin.spec.ts          # Playwright spec that loads JSON from `Fixtures/`
+```
+
+> If neither `tests/` nor `e2e/` exists, `tests/` will be created and used by default.
+
+---
+
+## File-by-file details
+
+### `hooks/before-json.json`
+
+Reusable **pre-test chain** that other JSON files can reference via `"before": "../hooks/before-json.json"`.
+
+- Example content opens the LATAM site and performs a minimal wait.
+- Good place to add login flows, cookies, feature flags, etc.
+
+```jsonc
+{
+  "describe": {
+    "text": "Before",
+    "url": "https://www.latamairlines.com/br/pt",
+    "case-key": {
+      "title": "Buy ticket",
+      "actions": [{ "wait": 3000 }]
+    }
+  }
+}
+```
+
+---
+
+### `Fixtures/playwright-plugin-web-from-json.json`
+
+**Main showcase suite** targeting `html/index.html` (the Scenario Lab). It demonstrates most of the plugin’s capabilities:
+
+- Navigation & URL assertions (`expectUrl` with `contains`)
+- Click by **selector** or **exact text**
+- `hover` + `expectVisible` tooltip
+- `type` / `typeSlow` / `press` (Enter) with **faker** support
+- Form controls: `check`, radio, `select`, `upload`
+- `expectText` with and without `loc`
+- Multiple matches with `nth` / `first` / `last`
+- Scoped searches with `within`
+- Iframe interactions with `frame`
+- Network synchronization with `waitRequest`
+- Modal visibility + `screenshot` target
+- A `forEach` playground that iterates over generated cards
+
+Target URL for this suite:
+
+```json
+{ "url": "http://127.0.0.1:5500/html/index.html" }
+```
+
+> Tip: use **Live Server** in VS Code to serve `/html/index.html` at `http://127.0.0.1:5500/html/index.html`.
+
+---
+
+### `Fixtures/before-plugin.json`
+
+**Automation example** that shows how to **chain a reusable “before” file**:
+
+```jsonc
+{
+  "describe": {
+    "text": "Using Test before Funcion",
+    "before": "../hooks/before-json.json",
+    "wait before each test": {
+      "text": "wait before each test",
+      "actions": [{ "wait": 3000 }]
+    }
+  }
+}
+```
+
+Use this pattern to share setup logic across multiple JSON suites (auth bootstrap, cookies, etc.).
+
+---
+
+### `Fixtures/plugin-example-voe-latam.json`
+
+Real-world example that opens **LATAM Airlines** and performs a small flow using actions like `root`, `parent`, `click`, `type`, `expectVisible`, and simple date clicks. It demonstrates:
+
+- Mixed **scoping** (`root` + `parent`) to shorten selectors
+- Text-based interactions (click by visible label)
+- Basic calendar interaction (example dates)
+- Passengers selector interaction
+- `wait` to stabilize steps
+
+> You can tailor the selectors/dates according to the site’s current layout and locales.
+
+---
+
+### `Fixtures/plugin-example-auto.json`
+
+Example using your **demo web app** hosted on GitHub Pages:
+
+- Logs in with `faker`-generated entries
+- Performs a **register flow**, including `select` and `parent` scoping
+- Demonstrates `frame` + `root` + `run` combos and `typeSlow`
+- Shows a **Tasks** flow using `run` return values to fill fields
+
+This file is great to see **`run`** in action paired with dynamic fields:
+
+```jsonc
+{ "run": "randomUser" }
+{ "type": "{resultFunc.username}" }
+```
+
+---
+
+### `html/index.html` (Scenario Lab)
+
+A static page purposely built to **exercise plugin actions/assertions** in a deterministic way:
+
+- Hover tooltips
+- Buttons that show toasts/labels
+- Inputs for typing/press
+- Radio/checkbox/select/upload
+- Repeated rows for `nth/first/last`
+- A small iframe with a button and toast
+- Network buttons calling **JSONPlaceholder**
+- A modal dialog
+- A **forEach** playground that generates a grid of cards (with inner buttons)
+
+Serve locally with VS Code **Live Server**:
+
+1. Install the extension “Live Server”
+2. Right-click `html/index.html` → **Open with Live Server**
+3. Confirm the URL used in the JSON: `http://127.0.0.1:5500/html/index.html`
+
+---
+
+### `help/plugin-func.ts` (RunPluginFunctions) **NOT CHANGE NAME**
+
+Implements `export class RunPluginFunctions` that your JSON can call with `"run": "<methodName>"`. Methods may be **sync** or **async** and can return **strings, numbers, or objects**. Returned values are exposed under **`{resultFunc}`** (or `resultFunc.*` for object fields).
+
+Provided examples:
+
+```ts
+export class RunPluginFunctions {
+  // not change name class
+  hello() {
+    return { greeting: "hello", email: "qa@example.com" };
+  }
+  async randomUser() {
+    return { username: "user_" + Math.random().toString(36).slice(2, 7) };
+  }
+  async delayedCode() {
+    await new Promise((r) => setTimeout(r, 1000));
+    return "CODE-" + Math.floor(Math.random() * 999);
+  }
+  randomCode() {
+    return Math.floor(Math.random() * 10000);
+  } // number
+  userEmail() {
+    return "user_" + Date.now() + "@example.com";
+  } // string
+}
+```
+
+Usage in JSON:
+
+```jsonc
+{ "run": "randomUser" }
+{ "type": "{resultFunc.username}", "loc": "#taskDescription" }
+{ "run": "hello" }
+{ "typeSlow": "{resultFunc.greeting}", "loc": "#address" }
+```
+
+> The loader tries multiple export styles: named export, default class, or default object with `RunPluginFunctions`. Keep the class name and export consistent.
+
+---
+
+### `tests/json-plugin.spec.ts` (or `e2e/json-plugin.spec.ts`)
+
+The Playwright spec that **generates tests from all JSON files** placed in `Fixtures/`:
+
+```ts
+import { test } from "@playwright/test";
+import { generateTestsFromJson } from "playwright-plugin-web-from-json";
+import path from "path";
+
+generateTestsFromJson(
+  {
+    dir: path.resolve(process.cwd(), "Fixtures"),
+    // baseURLOverride: "http://127.0.0.1:5500/html/index.html",
+    // functionsPath: path.resolve(process.cwd(), "help/plugin-func.ts"),
+    allowNoopWhenEmpty: true,
+  },
+  test
+);
+```
+
+- `dir`: folder to scan for JSON suites
+- `baseURLOverride`: point all cases to a given base URL (handy for Scenario Lab)
+- `functionsPath`: direct path to your `RunPluginFunctions`
+- `allowNoopWhenEmpty`: avoid failure if a JSON ends up empty (optional convenience)
+
+#
+
+# `config/before-config.ts`
+
+This file is **automatically created** by the setup script. It serves as a single place to centralize any logic you want to run **before each test** (e.g., authentication, cookies, feature flags, `viewport`, `locale`, `storageState`, etc.). By default, nothing runs — it simply exports an extended `test` so you can enable fixtures/hooks later.
+
+---
+
+## What is generated
+
+```ts
+// config/before-config.ts
+import { test as base, expect } from "@playwright/test";
+
+// (Optional) Define fixture types here if you plan to add any later.
+type Fixtures = {};
+
+// Extend Playwright's test. For now, no custom fixtures or hooks are active.
+// This file is a placeholder so you can easily enable per-test context/page or
+// any "before each" logic later without changing your runner signature.
+export const test = base.extend<Fixtures>({
+  // Example (disabled): provide a custom BrowserContext per test
+  // context: async ({ browser }, use) => {
+  //   const context = await browser.newContext({ /* options */ });
+  //   await use(context);
+  //   await context.close();
+  // },
+
+  // Example (disabled): provide a Page per test and run pre-test actions
+  // page: async ({ context }, use) => {
+  //   const page = await context.newPage();
+  //   // Place any per-test setup here (cookies, flags, login, etc.)
+  //   await use(page);
+  //   await page.close();
+  // },
+});
+
+// Global hooks — currently no-ops. Keep them to quickly add logic later if needed.
+test.beforeEach(async ({ /* page, context */ }) => {
+  // Reserved for actions to run before each test.
+});
+
+test.afterEach(async ({ /* page, context */ }) => {
+  // Reserved for actions to run after each test.
+});
+
+export { expect };
+
+```
+---
+
 ## Use recomended config in `playwright.config.ts`
 
 ## ![alt text](image-2.png)
@@ -50,7 +316,7 @@ To run the test HTML:
 
 {  } // to continue automation on the current page, do not use the key url
 
-```
+````
 
 ---
 
