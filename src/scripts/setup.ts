@@ -351,7 +351,7 @@ export { expect };
       before: "../hooks/before-json.json",
       "wait before each test": {
         text: "wait before each test",
-        actions: [{ wait: 3000 }],
+        actions: [{ click: "Aceite todos os cookies" }, { wait: 3000 }],
       },
     },
   };

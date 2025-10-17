@@ -234,7 +234,7 @@ generateTestsFromJson(
 
 #
 
-# `config/before-config.ts`
+## `config/before-config.ts`
 
 This file is **automatically created** by the setup script. It serves as a single place to centralize any logic you want to run **before each test** (e.g., authentication, cookies, feature flags, `viewport`, `locale`, `storageState`, etc.). By default, nothing runs — it simply exports an extended `test` so you can enable fixtures/hooks later.
 
