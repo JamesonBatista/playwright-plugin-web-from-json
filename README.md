@@ -5,9 +5,9 @@
   <img alt="node-current" src="https://img.shields.io/node/v/playwright?style=for-the-badge&label=node">
   <img alt="license" src="https://img.shields.io/badge/license-MIT-0bda51?style=for-the-badge">
   <img alt="PRs welcome" src="https://img.shields.io/badge/PRs-welcome-14b8a6?style=for-the-badge&logo=github">
+ <img alt="npm downloads" src="https://img.shields.io/npm/dt/playwright-plugin-web-from-json?style=for-the-badge&logo=npm">
 </p>
 <!-- Badges: END -->
-
 
 # ✨ Playwright Web-from-JSON
 
@@ -259,7 +259,6 @@ export const test = base.extend<Fixtures>({
   //   await use(context);
   //   await context.close();
   // },
-
   // Example (disabled): provide a Page per test and run pre-test actions
   // page: async ({ context }, use) => {
   //   const page = await context.newPage();
@@ -270,17 +269,29 @@ export const test = base.extend<Fixtures>({
 });
 
 // Global hooks — currently no-ops. Keep them to quickly add logic later if needed.
-test.beforeEach(async ({ /* page, context */ }) => {
-  // Reserved for actions to run before each test.
-});
+test.beforeEach(
+  async (
+    {
+      /* page, context */
+    }
+  ) => {
+    // Reserved for actions to run before each test.
+  }
+);
 
-test.afterEach(async ({ /* page, context */ }) => {
-  // Reserved for actions to run after each test.
-});
+test.afterEach(
+  async (
+    {
+      /* page, context */
+    }
+  ) => {
+    // Reserved for actions to run after each test.
+  }
+);
 
 export { expect };
-
 ```
+
 ---
 
 ## Use recomended config in `playwright.config.ts`
@@ -317,7 +328,7 @@ To run the test HTML:
 
 {  } // to continue automation on the current page, do not use the key url
 
-````
+```
 
 ---
 
